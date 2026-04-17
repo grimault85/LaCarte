@@ -1,7 +1,8 @@
 {
-  "name": "audittrack",
+  "name": "la-carte",
   "version": "1.0.0",
-  "description": "Suivi des dossiers clients et audits",
+  "description": "La Carte — Restaurant Advisory",
+  "author": "Anthony Grimault",
   "main": "electron/main.js",
   "homepage": "./",
   "scripts": {
@@ -15,15 +16,19 @@
     "dist:linux": "npm run build && electron-builder --linux"
   },
   "build": {
-    "appId": "com.audittrack.app",
-    "productName": "AuditTrack",
+    "appId": "com.lacarte.advisory",
+    "productName": "La Carte",
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
     "directories": {
       "output": "dist"
     },
     "files": [
       "build/**/*",
       "electron/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "package.json"
     ],
     "win": {
       "target": "nsis",
@@ -42,11 +47,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "AuditTrack"
+      "shortcutName": "La Carte"
     }
   },
   "dependencies": {
-    "better-sqlite3": "^9.4.3",
+    "@supabase/supabase-js": "^2.103.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1"
@@ -58,7 +63,13 @@
     "wait-on": "^7.2.0"
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version"
+    ]
   }
 }

@@ -85,13 +85,15 @@ const prioOf    = key => PRIORITY[key] || PRIORITY.medium;
 // ══════════════════════════════════════════════════════════════════
 
 export default function App() {
-  const [view,      setView]      = useState('dashboard');
-  const [clients,   setClients]   = useState([]);
-  const [stats,     setStats]     = useState(null);
-  const [selected,  setSelected]  = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [userName,  setUserName]  = useState('');
-  const [showSetup, setShowSetup] = useState(false);
+  const [view,        setView]        = useState('dashboard');
+  const [clients,     setClients]     = useState([]);
+  const [stats,       setStats]       = useState(null);
+  const [selected,    setSelected]    = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [userName,    setUserName]    = useState('');
+  const [showSetup,   setShowSetup]   = useState(false);
+  const [reminders,   setReminders]   = useState([]);
+  const [showReminders, setShowReminders] = useState(false);
   const api = window.electronAPI;
 
   const refresh = useCallback(async (keepSelectedId) => {
@@ -112,6 +114,50 @@ export default function App() {
       if (!name) setShowSetup(true);
     });
   }, [refresh]);
+
+  // Calcul des rappels après chargement des clients
+  useEffect(() => {
+    if (!clients.length) return;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const r = [];
+
+    // Clients sans news depuis +7 jours (nextAction dépassée)
+    const inactifs = clients.filter(c => {
+      if (!c.nextAction || c.stage === 'cloture') return false;
+      return isOverdue(c.nextAction);
+    });
+    if (inactifs.length) r.push({
+      type: 'warning', icon: '⏰',
+      title: `${inactifs.length} client${inactifs.length > 1 ? 's' : ''} en retard`,
+      detail: inactifs.slice(0,3).map(c => c.name).join(', ') + (inactifs.length > 3 ? `… +${inactifs.length - 3}` : ''),
+      action: () => setView('clients'),
+    });
+
+    // Clients actifs sans nextAction définie
+    const sansAction = clients.filter(c => !c.nextAction && c.stage !== 'cloture');
+    if (sansAction.length) r.push({
+      type: 'info', icon: '📋',
+      title: `${sansAction.length} dossier${sansAction.length > 1 ? 's' : ''} sans prochaine action`,
+      detail: sansAction.slice(0,3).map(c => c.name).join(', '),
+      action: () => setView('clients'),
+    });
+
+    // Clients en suivi mensuel — vérifier si le mois en cours a un suivi
+    const mois = today.getMonth() + 1;
+    const annee = today.getFullYear();
+    const retainersActifs = clients.filter(c => c.formula === 'suivi_mensuel' && c.stage !== 'cloture');
+    if (retainersActifs.length) r.push({
+      type: 'gold', icon: '📅',
+      title: `${retainersActifs.length} client${retainersActifs.length > 1 ? 's' : ''} en retainer — suivi ${MOIS_LABELS[mois-1]}`,
+      detail: retainersActifs.map(c => c.name).join(', '),
+      action: () => setView('clients'),
+    });
+
+    if (r.length > 0) {
+      setReminders(r);
+      setShowReminders(true);
+    }
+  }, [clients]);
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0D1520', color:'#8A7A5A', fontSize:15, fontFamily:'system-ui' }}>
@@ -163,6 +209,9 @@ export default function App() {
           onClose={() => setShowSetup(false)}
           required={!userName}
         />
+      )}
+      {showReminders && !showSetup && (
+        <RemindersModal reminders={reminders} onClose={() => setShowReminders(false)} />
       )}
     </div>
   );
@@ -585,6 +634,7 @@ function ClientDetail({ client, onClose, onDelete, onRefresh, api }) {
   const [saving,      setSaving]      = useState(false);
   const [exporting,   setExporting]   = useState(false);
   const [showDevis,   setShowDevis]   = useState(false);
+  const [showEmail,   setShowEmail]   = useState(false);
   const [history,     setHistory]     = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [analyses,    setAnalyses]    = useState([]);
@@ -759,6 +809,9 @@ function ClientDetail({ client, onClose, onDelete, onRefresh, api }) {
               </>
             ) : (
               <>
+                <button onClick={() => setShowEmail(true)} style={{ ...btnSec, fontSize: 12, color: '#0369a1', borderColor: '#93c5fd' }} title="Envoyer un email">
+                  📧 Email
+                </button>
                 <button onClick={() => setShowDevis(true)} style={{ ...btnPrimary, fontSize: 12 }} title="Générer un devis">
                   📋 Devis
                 </button>
@@ -829,6 +882,12 @@ function ClientDetail({ client, onClose, onDelete, onRefresh, api }) {
           client={client}
           onClose={() => setShowDevis(false)}
           api={api}
+        />
+      )}
+      {showEmail && (
+        <EmailModal
+          client={client}
+          onClose={() => setShowEmail(false)}
         />
       )}
     </div>
@@ -1124,6 +1183,50 @@ function NewClientModal({ onClose, onSave }) {
   );
 }
 
+function RemindersModal({ reminders, onClose }) {
+  const COLORS = {
+    warning: { border: '#fca5a5', bg: '#fff1f2', icon: '#dc2626', title: '#dc2626' },
+    info:    { border: '#93c5fd', bg: '#eff6ff', icon: '#0369a1', title: '#0369a1' },
+    gold:    { border: '#C9A84C', bg: '#FAF3E0', icon: '#C9A84C', title: '#0D1520' },
+  };
+  return (
+    <div style={overlay}>
+      <div style={{ ...modal, maxWidth: 460 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0D1520' }}>🔔 Rappels du jour</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#94a3b8' }}>{new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6b7280' }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          {reminders.map((r, i) => {
+            const c = COLORS[r.type] || COLORS.info;
+            return (
+              <div key={i} onClick={() => { r.action?.(); onClose(); }}
+                style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 10, padding: '12px 14px', cursor: r.action ? 'pointer' : 'default', transition: 'opacity 0.15s' }}
+                onMouseEnter={e => { if (r.action) e.currentTarget.style.opacity = '0.85'; }}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>{r.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: c.title }}>{r.title}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{r.detail}</div>
+                  </div>
+                  {r.action && <span style={{ fontSize: 12, color: '#94a3b8' }}>→</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button onClick={onClose} style={{ ...btnPrimary, width: '100%', textAlign: 'center' }}>
+          Compris, commencer la journée
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SetupUserModal({ current, onSave, onClose, required }) {
   const [name, setName] = useState(current || '');
   const valid = name.trim().length > 0;
@@ -1326,7 +1429,12 @@ function FinancialTab({ client, api, analyses, onReload }) {
           <div style={{ fontSize: 13 }}>Importez un ticket Z ou saisissez les données manuellement</div>
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 14 }}>
+        <>
+          {/* Graphe d'évolution — visible seulement si 2+ analyses */}
+          {analyses.length >= 2 && (
+            <EvolutionChart analyses={sorted} />
+          )}
+          <div style={{ display: 'flex', gap: 14 }}>
           {/* Sidebar périodes */}
           <div style={{ width: 160, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
             {sorted.map(a => {
@@ -1358,6 +1466,7 @@ function FinancialTab({ client, api, analyses, onReload }) {
             )}
           </div>
         </div>
+        </>
       )}
 
       {showDel && (
@@ -1368,6 +1477,97 @@ function FinancialTab({ client, api, analyses, onReload }) {
           onCancel={() => setShowDel(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Graphe d'évolution client ─────────────────────────────────────
+function EvolutionChart({ analyses }) {
+  const [metric, setMetric] = useState('ca');
+
+  const METRICS = [
+    { key: 'ca',    label: 'CA',         color: '#C9A84C', fn: d => +d.ca_total || 0,           fmt: v => fmtEur(v),       unit: '€' },
+    { key: 'cmv',   label: 'CMV %',      color: '#dc2626', fn: d => calcFin(d).cmvG,             fmt: v => `${v.toFixed(1)}%`, unit: '%' },
+    { key: 'ebe',   label: 'EBE %',      color: '#059669', fn: d => calcFin(d).ebeP,             fmt: v => `${v.toFixed(1)}%`, unit: '%' },
+    { key: 'pcost', label: 'Prime Cost', color: '#7c3aed', fn: d => calcFin(d).pcost,            fmt: v => `${v.toFixed(1)}%`, unit: '%' },
+    { key: 'ticket',label: 'Ticket moy', color: '#0369a1', fn: d => calcFin(d).tickM,            fmt: v => fmtEur(v),       unit: '€' },
+  ];
+
+  const m       = METRICS.find(x => x.key === metric) || METRICS[0];
+  // Trier chronologiquement (le plus ancien en premier)
+  const sorted  = [...analyses].sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois);
+  const values  = sorted.map(a => m.fn(a));
+  const maxVal  = Math.max(...values, 1);
+  const minVal  = Math.min(...values, 0);
+  const range   = maxVal - minVal || 1;
+
+  const first = values[0];
+  const last  = values[values.length - 1];
+  const evol  = first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0;
+  const evolColor = evol >= 0 ? '#059669' : '#dc2626';
+  // Pour CMV et Prime Cost, une baisse est positive
+  const isInverse = ['cmv','pcost'].includes(metric);
+  const evolPositif = isInverse ? evol <= 0 : evol >= 0;
+
+  return (
+    <div style={{ ...card, marginBottom: 16, padding: '16px 18px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0D1520' }}>📈 Évolution sur {analyses.length} mois</h3>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            {sorted[0]?.periode} → {sorted[sorted.length-1]?.periode}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Badge évolution */}
+          <div style={{ background: evolPositif ? '#d1fae5' : '#fee2e2', borderRadius: 8, padding: '4px 10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Évolution</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: evolPositif ? '#059669' : '#dc2626' }}>
+              {evol >= 0 ? '+' : ''}{evol.toFixed(1)}%
+            </div>
+          </div>
+          {/* Sélecteur métrique */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {METRICS.map(x => (
+              <button key={x.key} onClick={() => setMetric(x.key)} style={{
+                padding: '3px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                border: `1px solid ${metric === x.key ? x.color : '#DDD5B8'}`,
+                background: metric === x.key ? `${x.color}18` : '#FFFDF8',
+                color: metric === x.key ? x.color : '#6b7280',
+              }}>{x.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Graphe */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100, marginBottom: 8 }}>
+        {sorted.map((a, i) => {
+          const v   = values[i];
+          const h   = Math.max(Math.round(((v - minVal) / range) * 80 + 8), 4);
+          const isLast = i === sorted.length - 1;
+          return (
+            <div key={a.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              <div style={{ fontSize: 9, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', textAlign: 'center' }}>
+                {m.fmt(v)}
+              </div>
+              <div style={{ width: '100%', height: h, background: isLast ? m.color : `${m.color}55`, borderRadius: '3px 3px 0 0', transition: 'height 0.3s', position: 'relative' }}>
+                {isLast && <div style={{ position: 'absolute', inset: 0, background: m.color, borderRadius: '3px 3px 0 0', opacity: 0.85 }} />}
+              </div>
+              <div style={{ fontSize: 9, color: isLast ? m.color : '#94a3b8', fontWeight: isLast ? 700 : 400, whiteSpace: 'nowrap', textAlign: 'center' }}>
+                {a.periode?.split(' ')[0]?.slice(0, 3)} {a.annee}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Légende valeurs */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #EDE8D5', fontSize: 11 }}>
+        <div><span style={{ color: '#94a3b8' }}>Début : </span><span style={{ fontWeight: 700, color: '#0D1520' }}>{m.fmt(first)}</span></div>
+        <div><span style={{ color: '#94a3b8' }}>Actuel : </span><span style={{ fontWeight: 700, color: m.color }}>{m.fmt(last)}</span></div>
+        <div><span style={{ color: '#94a3b8' }}>Meilleur : </span><span style={{ fontWeight: 700, color: '#059669' }}>{m.fmt(isInverse ? Math.min(...values) : Math.max(...values))}</span></div>
+      </div>
     </div>
   );
 }
@@ -1745,11 +1945,12 @@ const PIPELINE_STATUTS = [
 const pipelineStatutOf = k => PIPELINE_STATUTS.find(s => s.key === k) || PIPELINE_STATUTS[0];
 
 const FACTURE_STATUTS = [
-  { key: 'brouillon', label: 'Brouillon',    color: '#6b7280', bg: '#f3f4f6' },
-  { key: 'envoyee',   label: 'Envoyée',      color: '#0369a1', bg: '#e0f2fe' },
-  { key: 'attente',   label: 'En attente',   color: '#d97706', bg: '#fef3c7' },
-  { key: 'payee',     label: 'Payée ✓',      color: '#059669', bg: '#d1fae5' },
-  { key: 'retard',    label: 'En retard',    color: '#dc2626', bg: '#fee2e2' },
+  { key: 'brouillon',         label: 'Brouillon',           color: '#6b7280', bg: '#f3f4f6' },
+  { key: 'envoyee',           label: 'Envoyée',             color: '#0369a1', bg: '#e0f2fe' },
+  { key: 'attente',           label: 'En attente',          color: '#d97706', bg: '#fef3c7' },
+  { key: 'premier_versement', label: '1er versement reçu',  color: '#7c3aed', bg: '#ede9fe' },
+  { key: 'payee',             label: 'Payée ✓',             color: '#059669', bg: '#d1fae5' },
+  { key: 'retard',            label: 'En retard',           color: '#dc2626', bg: '#fee2e2' },
 ];
 const factureStatutOf = k => FACTURE_STATUTS.find(s => s.key === k) || FACTURE_STATUTS[0];
 
@@ -1831,9 +2032,13 @@ function InterneDashboard({ api, clients }) {
     return d.getMonth() + 1 === mois && d.getFullYear() === annee;
   });
 
-  const caEncaisse  = facturesMois.filter(f => f.statut === 'payee').reduce((s, f) => s + (+f.montant || 0), 0);
+  const caEncaisse  = facturesMois
+    .filter(f => ['payee','premier_versement'].includes(f.statut))
+    .reduce((s, f) => s + (f.statut === 'premier_versement' ? (+f.montant||0) * 0.5 : (+f.montant||0)), 0);
   const caAttente   = facturesMois.filter(f => ['envoyee','attente','retard'].includes(f.statut)).reduce((s, f) => s + (+f.montant || 0), 0);
-  const caTotal     = factures.filter(f => f.statut === 'payee').reduce((s, f) => s + (+f.montant || 0), 0);
+  const caTotal     = factures
+    .filter(f => ['payee','premier_versement'].includes(f.statut))
+    .reduce((s, f) => s + (f.statut === 'premier_versement' ? (+f.montant||0) * 0.5 : (+f.montant||0)), 0);
   const enRetard    = factures.filter(f => f.statut === 'retard').length;
   const objectifPct = objectif > 0 ? Math.min(Math.round(caEncaisse / objectif * 100), 100) : 0;
 
@@ -2529,7 +2734,9 @@ function InterneFacturation({ api, clients }) {
   }
 
   const filtered = filter === 'all' ? factures : factures.filter(f => f.statut === filter);
-  const totalPayee  = factures.filter(f => f.statut === 'payee').reduce((s, f) => s + (+f.montant || 0), 0);
+  const totalPayee  = factures
+    .filter(f => ['payee','premier_versement'].includes(f.statut))
+    .reduce((s, f) => s + (f.statut === 'premier_versement' ? (+f.montant||0) * 0.5 : (+f.montant||0)), 0);
   const totalAttente = factures.filter(f => ['envoyee','attente'].includes(f.statut)).reduce((s, f) => s + (+f.montant || 0), 0);
   const totalRetard = factures.filter(f => f.statut === 'retard').reduce((s, f) => s + (+f.montant || 0), 0);
 
@@ -2569,39 +2776,47 @@ function InterneFacturation({ api, clients }) {
           <div style={{ fontSize: 14, fontWeight: 600, color: '#64748b' }}>Aucune facture</div>
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#FAF8F2' }}>
-                {['N° Facture', 'Client', 'Formule', 'Montant', 'Émission', 'Échéance', 'Statut', ''].map(h => (
-                  <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.4, borderBottom: '1px solid #DDD5B8' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(f => {
-                const st = factureStatutOf(f.statut);
-                const cl = clients.find(c => c.id === f.client_id);
-                return (
-                  <tr key={f.id} style={{ borderBottom: '1px solid #F5F0E8' }}>
-                    <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0D1520' }}>{f.numero}</td>
-                    <td style={{ padding: '9px 10px', color: '#374151' }}>{cl?.name || f.client_nom || '—'}</td>
-                    <td style={{ padding: '9px 10px' }}>{f.formule || '—'}</td>
-                    <td style={{ padding: '9px 10px', fontWeight: 700, color: '#059669' }}>{fmtEur(f.montant)}</td>
-                    <td style={{ padding: '9px 10px', color: '#64748b' }}>{f.date_emission ? new Date(f.date_emission).toLocaleDateString('fr-FR') : '—'}</td>
-                    <td style={{ padding: '9px 10px', color: f.statut === 'retard' ? '#dc2626' : '#64748b' }}>{f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '—'}</td>
-                    <td style={{ padding: '9px 10px' }}><Badge color={st.color} bg={st.bg} small>{st.label}</Badge></td>
-                    <td style={{ padding: '9px 10px' }}>
-                      <div style={{ display: 'flex', gap: 5 }}>
-                        <button onClick={() => setEditing(f)} style={{ ...btnSec, padding: '4px 8px', fontSize: 11 }}>Modifier</button>
-                        <button onClick={() => setShowDel(f)} style={{ ...btnSec, padding: '4px 8px', fontSize: 11, color: '#dc2626', borderColor: '#fca5a5' }}>Supprimer</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.map(f => {
+            const st = factureStatutOf(f.statut);
+            const cl = clients.find(c => String(c.id) === String(f.client_id));
+            const isPv = f.statut === 'premier_versement';
+            return (
+              <div key={f.id} style={{ ...card, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: '#0D1520' }}>{f.numero}</span>
+                    <Badge color={st.color} bg={st.bg} small>{st.label}</Badge>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    {cl?.name || f.client_nom || '—'}{f.formule ? ` · ${f.formule}` : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                    {f.date_emission ? new Date(f.date_emission).toLocaleDateString('fr-FR') : '—'}
+                    {f.date_echeance ? ` → ${new Date(f.date_echeance).toLocaleDateString('fr-FR')}` : ''}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: isPv ? '#7c3aed' : '#059669' }}>
+                    {isPv ? fmtEur(+f.montant * 0.5) : fmtEur(f.montant)}
+                  </div>
+                  {isPv && <div style={{ fontSize: 9, color: '#7c3aed' }}>acompte 50%</div>}
+                  <div style={{ fontSize: 10, color: '#94a3b8' }}>sur {fmtEur(f.montant)}</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+                  <button
+                    onClick={() => api.openFactureEditor(generateFactureHTML(f, cl))}
+                    style={{ ...btnPrimary, padding: '5px 12px', fontSize: 11 }}>
+                    📄 Générer PDF
+                  </button>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    <button onClick={() => setEditing(f)} style={{ ...btnSec, padding: '4px 8px', fontSize: 11, flex: 1 }}>Modifier</button>
+                    <button onClick={() => setShowDel(f)} style={{ ...btnSec, padding: '4px 8px', fontSize: 11, color: '#dc2626', borderColor: '#fca5a5' }}>✕</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       {showDel && <ConfirmModal title="Supprimer cette facture" message={`Supprimer la facture ${showDel.numero} ?`} onConfirm={async () => { await api.deleteFacture(showDel.id); setShowDel(null); load(); }} onCancel={() => setShowDel(null)} />}
@@ -2610,12 +2825,23 @@ function InterneFacturation({ api, clients }) {
 }
 
 function FactureForm({ data, clients, onSave, onCancel }) {
-  const [form, setForm] = useState({
-    numero: `FA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`,
-    client_id: '', client_nom: '', formule: '', montant: '', statut: 'brouillon',
+  const [form, setForm] = useState(() => ({
+    numero:        `FA-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 900) + 100)}`,
+    client_id:     '',
+    client_nom:    '',
+    formule:       '',
+    montant:       '',
+    statut:        'brouillon',
     date_emission: new Date().toISOString().split('T')[0],
-    date_echeance: '', notes: '', ...(data || {}),
-  });
+    date_echeance: '',
+    notes:         '',
+    ...(data || {}),
+    // Forcer client_id en string pour le select + dates jamais null
+    client_id:     data?.client_id != null ? String(data.client_id) : '',
+    date_emission: data?.date_emission || new Date().toISOString().split('T')[0],
+    date_echeance: data?.date_echeance || '',
+    montant:       data?.montant != null ? String(data.montant) : '',
+  }));
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const valid = form.numero && form.montant;
   return (
@@ -2631,9 +2857,13 @@ function FactureForm({ data, clients, onSave, onCancel }) {
           <div><label style={lbl}>Montant (€) *</label><input type="number" value={form.montant} onChange={e => set('montant', e.target.value)} style={inp} min="0" /></div>
           <div>
             <label style={lbl}>Client</label>
-            <select value={form.client_id} onChange={e => { set('client_id', e.target.value); const cl = clients.find(c => String(c.id) === e.target.value); if (cl) set('client_nom', cl.name); }} style={inp}>
+            <select value={form.client_id} onChange={e => {
+              set('client_id', e.target.value);
+              const cl = clients.find(c => String(c.id) === e.target.value);
+              if (cl) set('client_nom', cl.name);
+            }} style={inp}>
               <option value="">— Sélectionner —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name} — {c.company}</option>)}
+              {clients.map(c => <option key={c.id} value={String(c.id)}>{c.name} — {c.company}</option>)}
             </select>
           </div>
           <div><label style={lbl}>Formule / Prestation</label><input value={form.formule} onChange={e => set('formule', e.target.value)} style={inp} placeholder="Ex: Audit Menu" /></div>
@@ -2650,7 +2880,7 @@ function FactureForm({ data, clients, onSave, onCancel }) {
         </div>
         <div style={{ marginTop: 12 }}>
           <label style={lbl}>Notes</label>
-          <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} style={{ ...inp, resize: 'vertical' }} />
+          <textarea rows={2} value={form.notes || ''} onChange={e => set('notes', e.target.value)} style={{ ...inp, resize: 'vertical' }} />
         </div>
       </div>
     </div>
@@ -4121,6 +4351,497 @@ function MenuForm({ data, existingItems, onSave, onCancel }) {
 }
 
 // ══════════════════════════════════════════════════════════════════
+// EMAIL — TEMPLATES & MODAL
+// ══════════════════════════════════════════════════════════════════
+
+const EMAIL_TEMPLATES = [
+  {
+    id: 'premier_contact',
+    label: '👋 Premier contact après éligibilité',
+    stage: 'prospection',
+    subject: '[La Carte] Votre demande d\'accompagnement',
+    body: `Bonjour {{prenom}},
+
+Merci pour votre intérêt pour La Carte Advisory.
+
+J'ai bien pris connaissance de votre situation et je serais ravi(e) d'échanger avec vous pour voir comment je peux vous accompagner dans l'optimisation de {{etablissement}}.
+
+Pour mieux cerner vos besoins, je vous propose un appel découverte de 15 à 20 minutes, sans engagement. Je suis disponible cette semaine selon vos créneaux.
+
+N'hésitez pas à me proposer un moment qui vous convient.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'envoi_devis',
+    label: '📋 Envoi du devis',
+    stage: 'prospection',
+    subject: '[La Carte] Votre devis — {{formule}}',
+    body: `Bonjour {{prenom}},
+
+Suite à notre échange, veuillez trouver en pièce jointe votre proposition commerciale pour {{etablissement}}.
+
+Formule retenue : {{formule}} — {{montant}}
+
+Ce devis est valable 30 jours. Pour l'accepter, il vous suffit de me retourner le bon pour accord signé accompagné du règlement de l'acompte (50 %, soit {{acompte}}).
+
+Je reste disponible pour toute question ou pour ajuster la proposition selon vos besoins.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'relance_devis',
+    label: '🔔 Relance devis sans réponse',
+    stage: 'prospection',
+    subject: '[La Carte] Relance — Votre devis {{formule}}',
+    body: `Bonjour {{prenom}},
+
+Je me permets de revenir vers vous concernant le devis que je vous ai adressé pour {{etablissement}}.
+
+N'ayant pas eu de retour de votre part, je voulais m'assurer qu'il vous est bien parvenu et vérifier si vous avez des questions.
+
+Si le timing n'est pas le bon en ce moment, pas de souci — dites-le moi simplement et je repasserai vers vous plus tard.
+
+Dans le cas contraire, je reste disponible pour un appel rapide si vous souhaitez qu'on en discute.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'confirmation_mission',
+    label: '✅ Confirmation démarrage — Audit Menu',
+    stage: 'questionnaire',
+    subject: 'Confirmation de démarrage de mission — La Carte × {{etablissement}}',
+    body: `Bonjour {{prenom}},
+
+Je vous confirme le démarrage officiel de notre mission ensemble. Je suis ravi(e) de vous accompagner dans cette démarche d'optimisation.
+
+───────────────────────────
+📋 FORMULE CHOISIE
+───────────────────────────
+Audit Menu — {{montant}}
+Cette formule comprend l'analyse complète de votre carte (ingénierie de menu, matrice de rentabilité, positionnement tarifaire) et la remise d'un rapport de recommandations personnalisé.
+
+───────────────────────────
+📦 LIVRABLES ATTENDUS
+───────────────────────────
+• Matrice d'ingénierie de menu (Stars / Vaches / Énigmes / Poids morts)
+• Analyse des marges et du CMV par famille de produits
+• Rapport de recommandations stratégiques (format PDF)
+• Synthèse des axes prioritaires d'optimisation
+
+───────────────────────────
+📅 DÉLAI DE REMISE
+───────────────────────────
+Vos livrables vous seront transmis sous 7 jours ouvrés à compter de la réception de l'ensemble des documents demandés.
+
+───────────────────────────
+📁 DOCUMENTS À ME TRANSMETTRE
+───────────────────────────
+☐ Carte actuelle complète (PDF ou photo lisible)
+☐ Fiches techniques ou coûts matières si disponibles
+☐ Prix d'achat fournisseurs des produits principaux
+☐ Tickets Z des 3 derniers mois (ou relevé des ventes par produit)
+☐ Nombre moyen de couverts par service
+☐ Tout autre document que vous jugez utile
+
+Vous pouvez m'adresser ces documents directement par email en réponse à ce message.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'confirmation_mission_complet',
+    label: '✅ Confirmation démarrage — Audit Complet',
+    stage: 'questionnaire',
+    subject: 'Confirmation de démarrage de mission — La Carte × {{etablissement}}',
+    body: `Bonjour {{prenom}},
+
+Je vous confirme le démarrage officiel de notre mission ensemble. Je suis ravi(e) de vous accompagner dans cette démarche d'optimisation globale.
+
+───────────────────────────
+📋 FORMULE CHOISIE
+───────────────────────────
+Audit Complet — {{montant}}
+Cette formule couvre l'intégralité de votre performance financière et commerciale : analyse de la carte, étude du CMV global, optimisation des achats fournisseurs et recommandations stratégiques.
+
+───────────────────────────
+📦 LIVRABLES ATTENDUS
+───────────────────────────
+• Matrice d'ingénierie de menu
+• Analyse complète du CMV et des marges par famille
+• Tableau de bord financier (recettes, charges, tickets moyens)
+• Rapport de recommandations stratégiques complet (PDF)
+• Plan d'action priorisé S1 / M1 / M2-3
+
+───────────────────────────
+📅 DÉLAI DE REMISE
+───────────────────────────
+Vos livrables vous seront transmis sous 10 jours ouvrés à compter de la réception de l'ensemble des documents demandés.
+
+───────────────────────────
+📁 DOCUMENTS À ME TRANSMETTRE
+───────────────────────────
+☐ Carte actuelle complète (PDF ou photo lisible)
+☐ Fiches techniques ou coûts matières si disponibles
+☐ Tickets Z des 3 derniers mois
+☐ Compte de résultat ou bilan simplifié (dernière année)
+☐ Détail des charges fixes mensuelles (loyer, personnel, abonnements…)
+☐ Contrats fournisseurs en cours si disponibles
+
+Vous pouvez m'adresser ces documents directement par email en réponse à ce message.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'confirmation_retainer',
+    label: '✅ Confirmation démarrage — Retainer',
+    stage: 'questionnaire',
+    subject: 'Confirmation de démarrage de mission — La Carte × {{etablissement}}',
+    body: `Bonjour {{prenom}},
+
+Je vous confirme le démarrage officiel de notre collaboration mensuelle. C'est avec plaisir que j'intègre votre activité dans mon suivi continu.
+
+───────────────────────────
+📋 FORMULE CHOISIE
+───────────────────────────
+Retainer Mensuel — {{montant}} / mois
+Cette formule vous garantit un suivi régulier de vos indicateurs clés, une disponibilité mensuelle dédiée et des recommandations ajustées en temps réel.
+
+───────────────────────────
+📦 LIVRABLES ATTENDUS (chaque mois)
+───────────────────────────
+• Point mensuel sur les indicateurs financiers (CMV, ticket moyen, marge)
+• Mise à jour de la matrice de performance carte si évolution
+• Note de recommandations et ajustements du mois
+• Disponibilité email pour toute question ponctuelle
+
+───────────────────────────
+📅 RYTHME & DÉLAIS
+───────────────────────────
+Le rapport mensuel vous sera transmis entre le 5 et le 10 de chaque mois, sur la base des données du mois précédent.
+
+───────────────────────────
+📁 DOCUMENTS À ME TRANSMETTRE CE MOIS-CI
+───────────────────────────
+☐ Carte actuelle complète
+☐ Tickets Z du mois écoulé
+☐ Prix d'achat fournisseurs des produits principaux
+☐ Fiches techniques si disponibles
+☐ Compte de résultat ou bilan simplifié (dernière année)
+
+Bien cordialement,`,
+  },
+  {
+    id: 'demande_donnees',
+    label: '📁 Demande de données pré-audit',
+    stage: 'questionnaire',
+    subject: '[La Carte] Démarrage mission — Documents à nous transmettre',
+    body: `Bonjour {{prenom}},
+
+Suite à notre échange, voici la liste des éléments dont nous avons besoin pour démarrer l'analyse de votre carte.
+
+Merci de nous transmettre les quatre points ci-dessous d'ici le {{date_limite}}, en réponse à cet email ou via WeTransfer si les fichiers sont volumineux.
+
+── 1. VOTRE CARTE ACTUELLE ──────────────────────
+• La version la plus récente en PDF ou en photo lisible
+• Si vous avez plusieurs cartes — déjeuner, brunch, soir, saison — transmettez-les toutes
+
+── 2. DONNÉES DE VENTES PAR PLAT ─────────────────
+• Le nombre de ventes par référence sur la période la plus récente disponible (idéalement 1 à 3 mois)
+• Format libre : export caisse, tableur, relevé manuel
+• Précisez bien la période couverte
+
+── 3. PRIX DE VENTE ET COÛT MATIÈRE ──────────────
+Pour chaque plat de la carte :
+• Le prix de vente TTC
+• Le coût matière (estimation honnête suffit)
+Format suggéré : un tableau simple Plat / Prix de vente / Coût matière estimé.
+
+── 4. QUELQUES CHIFFRES DE CONTEXTE ──────────────
+• Ticket moyen actuel (si vous le connaissez)
+• Nombre de services par semaine
+• Nombre de couverts moyen par service
+
+─────────────────────────────────────────────────
+Une fois ces éléments reçus, nous vous confirmons la réception sous 24h et démarrons l'analyse. Votre rapport vous sera remis sous {{delai}} jours ouvrés.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'envoi_rapport',
+    label: '📄 Envoi du rapport d\'audit',
+    stage: 'audit',
+    subject: '[La Carte] Votre rapport d\'audit — {{etablissement}}',
+    body: `Bonjour {{prenom}},
+
+Votre rapport d'audit est finalisé. Vous le trouverez en pièce jointe.
+
+Le document couvre les trois axes analysés :
+— Ingénierie de menu : classification de chaque référence, identification des plats qui tirent votre résultat et de ceux qui le pèsent
+— CMV & Pricing : coût matière et marge réelle par plat, comparaison au benchmark de votre segment, leviers d'optimisation chiffrés
+— Lisibilité & structure : architecture de la carte, positionnement des références rentables, axes d'amélioration éditoriale
+
+Le rapport inclut en fin de document un plan d'action priorisé avec les modifications concrètes à effectuer et une estimation du gain mensuel potentiel.
+
+Pour la restitution, je vous propose le {{date_visio}} à {{heure_visio}}. Comptez environ 1 heure.
+
+Lien visio : {{lien_visio}}
+
+Si cette date ne vous convient pas, indiquez-moi vos disponibilités et je m'adapte.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'synthese_call',
+    label: '📝 Synthèse post-call',
+    stage: 'cloture',
+    subject: '[La Carte] Synthèse de notre call — actions prioritaires',
+    body: `Bonjour {{prenom}},
+
+Merci pour notre échange. Voici le récapitulatif des points actionnables que nous avons retenus ensemble.
+
+ACTIONS PRIORITAIRES
+1. [Action 1]
+2. [Action 2]
+3. [Action 3]
+
+Ces trois points seuls représentent l'essentiel du gain estimé dans le rapport.
+
+POUR ALLER PLUS LOIN
+Si vous souhaitez un suivi dans la durée — mesurer l'impact des ajustements sur votre CMV et votre mix de ventes — le retainer mensuel La Carte est fait pour ça.
+Il comprend un point mensuel de 45 minutes, un suivi des indicateurs clés et des recommandations d'ajustement. Tarif : à partir de 490 €/mois, sans engagement.
+
+Si ça vous intéresse, répondez simplement à cet email.
+
+Bonne mise en oeuvre,`,
+  },
+  {
+    id: 'suivi_mensuel_chiffres',
+    label: '📅 Suivi mensuel — demande des chiffres',
+    stage: 'audit',
+    subject: '[La Carte] Suivi {{mois}} — Données du mois',
+    body: `Bonjour {{prenom}},
+
+Nous entrons dans la période de suivi de {{mois}}. Pour préparer votre rapport mensuel, j'aurais besoin des éléments suivants pour {{etablissement}} :
+
+📊 DONNÉES À ME TRANSMETTRE
+─────────────────────────────
+☐ Tickets Z ou export caisse du mois de {{mois_precedent}}
+☐ Tout changement de carte intervenu ce mois-ci (nouveaux plats, suppressions, changements de prix)
+☐ Tout changement chez vos fournisseurs (nouveaux tarifs, changements de produits)
+☐ Vos observations du mois : événements particuliers, fortes affluences, problèmes rencontrés
+
+─────────────────────────────
+Merci de me transmettre ces éléments avant le {{date_limite}} afin que je puisse vous remettre votre rapport sous 5 jours ouvrés.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'relance_facture',
+    label: '💰 Relance facture impayée',
+    stage: null,
+    subject: '[La Carte] Rappel de paiement — Facture {{numero_facture}}',
+    body: `Bonjour {{prenom}},
+
+Je me permets de vous contacter au sujet de la facture {{numero_facture}} d'un montant de {{montant}}, émise le {{date_emission}} et dont l'échéance est fixée au {{date_echeance}}.
+
+À ce jour, je n'ai pas encore reçu le règlement correspondant. Il s'agit peut-être d'un simple oubli — si c'est le cas, merci de procéder au virement dans les meilleurs délais.
+
+Coordonnées bancaires :
+• Titulaire : Anthony Grimault
+• IBAN : [IBAN]
+• BIC : [BIC]
+
+Si vous rencontrez une difficulté particulière, n'hésitez pas à me contacter pour qu'on en discute.
+
+Bien cordialement,`,
+  },
+  {
+    id: 'remerciement_acompte',
+    label: '🤝 Remerciement réception acompte',
+    stage: 'questionnaire',
+    subject: '[La Carte] Acompte reçu — Mission lancée ✓',
+    body: `Bonjour {{prenom}},
+
+J'ai bien reçu votre acompte — merci !
+
+La mission est officiellement lancée. Je vous recontacterai très prochainement avec la liste des documents à me transmettre pour démarrer l'analyse de {{etablissement}}.
+
+D'ici là, n'hésitez pas à me contacter si vous avez des questions.
+
+Bien cordialement,`,
+  },
+];
+
+// ── Modal Email ───────────────────────────────────────────────────
+function EmailModal({ client, onClose }) {
+  const fm      = formulaOf(client.formula);
+  const prenom  = client.name?.split(' ')[0] || client.name || '';
+  const today   = new Date();
+  const moisCourant  = MOIS_LABELS[today.getMonth()];
+  const moisPrec     = MOIS_LABELS[today.getMonth() === 0 ? 11 : today.getMonth() - 1];
+  const dateLimite   = new Date(today); dateLimite.setDate(today.getDate() + 5);
+  const dateLimiteStr = dateLimite.toLocaleDateString('fr-FR');
+
+  // Valeurs de substitution depuis la fiche client
+  const vars = {
+    '{{prenom}}':          prenom,
+    '{{nom}}':             client.name         || '',
+    '{{etablissement}}':   client.company      || '',
+    '{{email}}':           client.email        || '',
+    '{{formule}}':         fm.label            || '',
+    '{{montant}}':         client.revenue > 0  ? fmtEur(client.revenue) : '[montant]',
+    '{{acompte}}':         client.revenue > 0  ? fmtEur(Math.round(client.revenue * 0.5)) : '[acompte]',
+    '{{date_limite}}':     dateLimiteStr,
+    '{{mois}}':            moisCourant,
+    '{{mois_precedent}}':  moisPrec,
+    '{{delai}}':           client.formula === 'audit_menu_financier' ? '10' : '7',
+    '{{numero_facture}}':  '[N° Facture]',
+    '{{date_emission}}':   today.toLocaleDateString('fr-FR'),
+    '{{date_echeance}}':   '[Date échéance]',
+    '{{date_visio}}':      '[Date]',
+    '{{heure_visio}}':     '[Heure]',
+    '{{lien_visio}}':      '[Lien visio]',
+  };
+
+  function applyVars(text) {
+    let t = text;
+    Object.entries(vars).forEach(([k, v]) => { t = t.replaceAll(k, v); });
+    return t;
+  }
+
+  const [selectedId, setSelectedId] = useState(EMAIL_TEMPLATES[0].id);
+  const template = EMAIL_TEMPLATES.find(t => t.id === selectedId) || EMAIL_TEMPLATES[0];
+
+  const [subject, setSubject] = useState(applyVars(template.subject));
+  const [body,    setBody]    = useState(applyVars(template.body));
+  const [montantEdit, setMontantEdit] = useState(client.revenue > 0 ? String(client.revenue) : '');
+
+  // Recalculer quand template change
+  const { useEffect: uE } = window.React || {};
+  useState(() => {}); // dummy
+
+  function selectTemplate(id) {
+    const t = EMAIL_TEMPLATES.find(x => x.id === id);
+    if (!t) return;
+    setSelectedId(id);
+    const customVars = { ...vars };
+    if (montantEdit) {
+      const m = +montantEdit;
+      customVars['{{montant}}']  = fmtEur(m);
+      customVars['{{acompte}}']  = fmtEur(Math.round(m * 0.5));
+    }
+    let s = t.subject, b = t.body;
+    Object.entries(customVars).forEach(([k, v]) => { s = s.replaceAll(k, v); b = b.replaceAll(k, v); });
+    setSubject(s);
+    setBody(b);
+  }
+
+  function handleMontantChange(val) {
+    setMontantEdit(val);
+    const m = +val;
+    if (!m) return;
+    const newBody    = body.replaceAll(fmtEur(+montantEdit || 0), fmtEur(m))
+                           .replaceAll('[montant]', fmtEur(m));
+    const newAcompte = fmtEur(Math.round(m * 0.5));
+    setBody(newBody.replaceAll(fmtEur(Math.round((+montantEdit||0)*0.5)), newAcompte).replaceAll('[acompte]', newAcompte));
+    setSubject(subject.replaceAll('[montant]', fmtEur(m)));
+  }
+
+  function handleSend() {
+    const gmailUrl = `https://mail.google.com/mail/u/lacarte.advisory@gmail.com/?view=cm&to=${encodeURIComponent(client.email || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.electronAPI.openExternal(gmailUrl);
+    onClose();
+  }
+
+  const CATS = [
+    { label: 'Prospection', ids: ['premier_contact','envoi_devis','relance_devis'] },
+    { label: 'Démarrage',   ids: ['confirmation_mission','confirmation_mission_complet','confirmation_retainer','remerciement_acompte'] },
+    { label: 'Mission',     ids: ['demande_donnees','envoi_rapport','synthese_call'] },
+    { label: 'Suivi',       ids: ['suivi_mensuel_chiffres'] },
+    { label: 'Facturation', ids: ['relance_facture'] },
+  ];
+
+  return (
+    <div style={overlay}>
+      <div style={{ ...modal, maxWidth: 760, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0D1520' }}>📧 Envoyer un email</h2>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#94a3b8' }}>
+              {client.name} — {client.email || <span style={{ color: '#dc2626' }}>Aucun email renseigné</span>}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6b7280' }}>✕</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 14, flex: 1, minHeight: 0 }}>
+          {/* Sidebar templates */}
+          <div style={{ width: 200, flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {CATS.map(cat => (
+              <div key={cat.label}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 5 }}>{cat.label}</div>
+                {cat.ids.map(id => {
+                  const t = EMAIL_TEMPLATES.find(x => x.id === id);
+                  if (!t) return null;
+                  return (
+                    <button key={id} onClick={() => selectTemplate(id)} style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
+                      borderRadius: 7, border: `1px solid ${selectedId === id ? '#C9A84C' : '#DDD5B8'}`,
+                      background: selectedId === id ? '#FAF3E0' : '#FFFDF8',
+                      color: selectedId === id ? '#0D1520' : '#6b7280',
+                      fontSize: 11, fontWeight: selectedId === id ? 700 : 400, cursor: 'pointer',
+                      marginBottom: 4,
+                    }}>{t.label}</button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Éditeur */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+            {/* Montant personnalisable */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: '#FAF3E0', border: '1px solid #C9A84C', borderRadius: 8, padding: '8px 12px' }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#0D1520', whiteSpace: 'nowrap' }}>Montant (€)</span>
+              <input type="number" value={montantEdit} onChange={e => handleMontantChange(e.target.value)}
+                placeholder="Ex: 640" style={{ ...inp, maxWidth: 120, fontSize: 13, fontWeight: 700 }} min="0" />
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>Acompte auto : {montantEdit ? fmtEur(Math.round(+montantEdit * 0.5)) : '—'}</span>
+            </div>
+
+            {/* Objet */}
+            <div>
+              <label style={lbl}>Objet</label>
+              <input value={subject} onChange={e => setSubject(e.target.value)} style={{ ...inp, fontWeight: 600 }} />
+            </div>
+
+            {/* Corps */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <label style={lbl}>Corps de l'email</label>
+              <textarea value={body} onChange={e => setBody(e.target.value)}
+                style={{ ...inp, flex: 1, resize: 'none', fontFamily: 'inherit', lineHeight: 1.65, fontSize: 12, minHeight: 280 }} />
+            </div>
+
+            <div style={{ fontSize: 10, color: '#94a3b8', fontStyle: 'italic' }}>
+              💡 La signature Gmail sera ajoutée automatiquement à l'envoi
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexShrink: 0 }}>
+              <button onClick={onClose} style={btnSec}>Annuler</button>
+              <button onClick={handleSend} disabled={!client.email}
+                style={{ ...btnPrimary, opacity: client.email ? 1 : 0.5 }}>
+                📧 Ouvrir dans Gmail
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════
 // DEVIS — GÉNÉRATION PDF
 // ══════════════════════════════════════════════════════════════════
 
@@ -4145,7 +4866,351 @@ function fmtDate(d) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+// ── Génération HTML Facture ───────────────────────────────────────
+function generateFactureHTML(facture, client) {
+  const montant    = +facture.montant || 0;
+  const acompte    = Math.round(montant / 2 * 100) / 100;
+  const fmt        = v => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const dateEmission = facture.date_emission ? new Date(facture.date_emission).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  const dateEcheance = facture.date_echeance ? new Date(facture.date_echeance).toISOString().split('T')[0] : '';
+
+  // Détecter le type d'audit pour pré-cocher
+  const isComplet = facture.formule?.toLowerCase().includes('complet') || facture.formule?.toLowerCase().includes('financier');
+  const isMenu    = !isComplet && (facture.formule?.toLowerCase().includes('menu') || facture.formule?.toLowerCase().includes('audit'));
+  const auditLabel = isComplet ? 'Audit Complet — Menu + Financier & CMV' : isMenu ? 'Audit Menu — Ingénierie de carte' : facture.formule || '— Prestation de conseil —';
+
+  // Déterminer si acompte ou solde selon statut
+  const isAcompte = ['brouillon','envoyee','attente'].includes(facture.statut);
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Facture ${facture.numero} — La Carte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root { --marine:#0D1B2A; --or:#C9A84C; --creme:#F0E6C8; --creme-light:#FAF5EA; --or-light:rgba(201,168,76,0.12); }
+body { background:#e8e0d0; font-family:'Space Mono',monospace; color:var(--marine); padding:40px 20px 80px; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.toolbar { width:210mm; margin:0 auto 16px; display:flex; gap:10px; justify-content:flex-end; }
+.btn { font-family:'Bebas Neue',sans-serif; font-size:12px; letter-spacing:3px; padding:10px 22px; border:none; cursor:pointer; transition:all .2s; }
+.btn-print { background:var(--marine); color:var(--or); }
+.btn-print:hover { background:#1a3048; }
+.page { width:210mm; min-height:297mm; margin:0 auto; background:var(--creme-light); position:relative; overflow:hidden; box-shadow:0 8px 40px rgba(13,27,42,0.25); }
+.page::before { content:''; position:absolute; top:0; right:0; width:0; height:0; border-style:solid; border-width:0 80px 80px 0; border-color:transparent var(--or) transparent transparent; z-index:2; }
+.page::after { content:''; position:absolute; top:-60px; left:-60px; width:280px; height:280px; background:radial-gradient(circle,rgba(201,168,76,0.08) 0%,transparent 70%); z-index:0; pointer-events:none; }
+input[type="text"],input[type="date"],input[type="number"],select { font-family:'Space Mono',monospace; font-size:10px; color:var(--marine); background:transparent; border:none; border-bottom:1.5px solid rgba(13,27,42,0.3); outline:none; padding:1px 3px; }
+input[type="text"]:focus,input[type="date"]:focus,input[type="number"]:focus { border-bottom-color:var(--or); background:rgba(201,168,76,0.06); }
+input::placeholder { color:rgba(13,27,42,0.28); font-style:italic; }
+.on-dark input { color:var(--creme); border-bottom-color:rgba(240,230,200,0.25); }
+.on-dark input:focus { border-bottom-color:var(--or); background:rgba(255,255,255,0.05); }
+.on-dark input::placeholder { color:rgba(240,230,200,0.3); }
+.header { background:var(--marine); padding:36px 40px 30px; display:flex; justify-content:space-between; align-items:flex-end; position:relative; z-index:1; }
+.logo-name { font-family:'Bebas Neue',sans-serif; font-size:34px; letter-spacing:6px; color:var(--creme); line-height:1; }
+.logo-name span { color:var(--or); }
+.logo-tagline { font-family:'Cormorant Garamond',serif; font-size:11px; font-style:italic; color:rgba(240,230,200,0.5); letter-spacing:3px; margin-top:4px; }
+.doc-label { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:5px; color:var(--or); line-height:1; }
+.doc-number { font-family:'Space Mono',monospace; font-size:11px; color:rgba(240,230,200,0.6); margin-top:6px; }
+.doc-number input { font-size:11px; width:120px; color:rgba(240,230,200,0.85); border-bottom-color:rgba(240,230,200,0.2); }
+.gold-bar { height:3px; background:linear-gradient(90deg,var(--or) 0%,rgba(201,168,76,0.2) 100%); }
+.body { padding:36px 40px; position:relative; z-index:1; }
+.meta-row { display:flex; justify-content:space-between; margin-bottom:36px; gap:24px; }
+.meta-block { flex:1; }
+.meta-label { font-family:'Bebas Neue',sans-serif; font-size:10px; letter-spacing:3px; color:var(--or); margin-bottom:10px; }
+.meta-value { font-family:'Space Mono',monospace; font-size:10px; color:var(--marine); line-height:2; }
+.meta-value input[type="text"] { width:180px; }
+.meta-value input[type="date"] { width:120px; font-size:9.5px; }
+.section-title { font-family:'Bebas Neue',sans-serif; font-size:12px; letter-spacing:4px; color:var(--or); margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid rgba(201,168,76,0.3); }
+.audit-type-row { display:flex; gap:24px; margin-bottom:20px; align-items:center; }
+.audit-type-row label { display:flex; align-items:center; gap:8px; font-family:'Space Mono',monospace; font-size:10px; color:var(--marine); cursor:pointer; padding:8px 16px; border:1.5px solid rgba(13,27,42,0.15); transition:all .2s; }
+.audit-type-row label:hover { border-color:var(--or); background:var(--or-light); }
+.audit-type-row input[type="radio"] { accent-color:var(--or); width:14px; height:14px; }
+.audit-type-row label.selected { border-color:var(--or); background:var(--or-light); font-weight:700; }
+.service-table { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:10px; }
+.service-table thead tr { background:var(--marine); }
+.service-table thead th { font-family:'Bebas Neue',sans-serif; font-size:10px; letter-spacing:2px; color:var(--or); padding:10px 12px; text-align:left; font-weight:400; }
+.service-table thead th:nth-child(2),.service-table thead th:nth-child(3),.service-table thead th:last-child { text-align:right; }
+.service-table tbody tr { border-bottom:1px solid rgba(13,27,42,0.08); }
+.service-table tbody tr:nth-child(even) { background:var(--or-light); }
+.service-table tbody td { padding:10px 12px; font-family:'Space Mono',monospace; font-size:9.5px; color:var(--marine); vertical-align:middle; }
+.service-table tbody td:nth-child(2),.service-table tbody td:nth-child(3),.service-table tbody td:last-child { text-align:right; }
+.service-table input[type="text"] { width:100%; max-width:240px; }
+.service-table input[type="number"] { width:80px; text-align:right; font-size:9.5px; }
+.desc-sub { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:11px; color:rgba(13,27,42,0.55); margin-top:3px; }
+.desc-sub input { width:200px; font-size:10px; font-style:italic; font-family:'Cormorant Garamond',serif; }
+.total-read { font-family:'Space Mono',monospace; font-size:9.5px; color:var(--marine); font-weight:700; }
+.totals-area { display:flex; justify-content:flex-end; margin-top:4px; margin-bottom:28px; }
+.totals-table { width:280px; font-size:10px; border-collapse:collapse; }
+.totals-table tr td { padding:5px 10px; font-family:'Space Mono',monospace; }
+.totals-table tr td:last-child { text-align:right; }
+.totals-table tr.total-ht td { color:rgba(13,27,42,0.65); font-size:9.5px; border-top:1px solid rgba(13,27,42,0.15); }
+.totals-table tr.tva td { color:rgba(13,27,42,0.65); font-size:9.5px; }
+.totals-table tr.total-ttc td { background:var(--marine); color:var(--creme); font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:2px; padding:10px 12px; }
+.totals-table tr.total-ttc td:last-child { color:var(--or); font-size:15px; }
+.acompte-section { background:var(--marine); padding:24px 28px; margin-bottom:20px; position:relative; overflow:hidden; }
+.acompte-header { font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:4px; color:var(--or); margin-bottom:16px; }
+.acompte-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.acompte-item-label { font-family:'Cormorant Garamond',serif; font-style:italic; font-size:10px; color:rgba(240,230,200,0.55); letter-spacing:1px; margin-bottom:6px; }
+.acompte-amount { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; color:var(--or); line-height:1; }
+.acompte-amount.solde-color { color:var(--creme); }
+.acompte-item-note { font-family:'Space Mono',monospace; font-size:8.5px; color:rgba(240,230,200,0.45); margin-top:4px; }
+.solde-section { background:var(--or-light); border:1px solid rgba(201,168,76,0.35); border-left:3px solid var(--or); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; gap:16px; }
+.solde-label { font-family:'Bebas Neue',sans-serif; font-size:11px; letter-spacing:3px; color:var(--marine); margin-bottom:10px; }
+.echéance-radios { display:flex; gap:20px; }
+.echéance-radios label { display:flex; align-items:center; gap:6px; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:11px; color:rgba(13,27,42,0.65); cursor:pointer; }
+.echéance-radios input[type="radio"] { accent-color:var(--or); }
+.solde-amount-display { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:2px; color:var(--marine); white-space:nowrap; min-width:140px; text-align:right; }
+.solde-amount-display span { color:var(--or); }
+.payment-section { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+.payment-box { background:white; border:1px solid rgba(13,27,42,0.1); padding:16px; }
+.payment-box-title { font-family:'Bebas Neue',sans-serif; font-size:10px; letter-spacing:3px; color:var(--or); margin-bottom:10px; }
+.payment-line { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.payment-key { font-family:'Cormorant Garamond',serif; font-style:italic; color:rgba(13,27,42,0.55); font-size:10px; }
+.payment-val { font-family:'Space Mono',monospace; color:var(--marine); font-weight:700; font-size:9px; }
+.payment-val input { width:130px; font-size:9px; font-weight:700; }
+.footer { background:var(--marine); padding:16px 40px; display:flex; justify-content:space-between; align-items:center; }
+.footer-brand { font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:4px; color:rgba(240,230,200,0.3); }
+.footer-brand span { color:var(--or); }
+.footer-legal { font-family:'Space Mono',monospace; font-size:7.5px; color:rgba(240,230,200,0.3); text-align:right; line-height:1.7; }
+@media print { body { background:none; padding:0; } .toolbar { display:none; } .page { box-shadow:none; margin:0; width:100%; min-height:100vh; } input,select { border-bottom:1px solid rgba(13,27,42,0.2)!important; background:transparent!important; } .on-dark input { border-bottom:1px solid rgba(240,230,200,0.2)!important; } .audit-type-row label { border:1px solid rgba(13,27,42,0.12)!important; } .audit-type-row label.selected { border:1.5px solid var(--or)!important; } }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button class="btn btn-print" onclick="window.print()">⎙ IMPRIMER / EXPORTER PDF</button>
+</div>
+
+<div class="page">
+  <div class="header">
+    <div class="logo-block">
+      <div class="logo-name">LA <span>CARTE</span></div>
+      <div class="logo-tagline">Conseil · Analyse · Recette · Tactique · Exploitation</div>
+    </div>
+    <div class="doc-type-block">
+      <div class="doc-label">FACTURE</div>
+      <div class="doc-number on-dark">
+        N°&nbsp;<input type="text" id="num_facture" value="${facture.numero || ''}" style="width:110px; font-size:11px; color:rgba(240,230,200,0.85); border-bottom-color:rgba(240,230,200,0.2);">
+      </div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="body">
+    <div class="meta-row">
+      <div class="meta-block">
+        <div class="meta-label">ÉMETTEUR</div>
+        <div class="meta-value">
+          La Carte<br>
+          <input type="text" placeholder="Adresse ligne 1" style="width:190px;"><br>
+          <input type="text" placeholder="Code postal, Ville" style="width:190px;"><br>
+          SIRET&nbsp;: <input type="text" placeholder="[en cours d'immatriculation]" style="width:150px;">
+        </div>
+      </div>
+      <div class="meta-block">
+        <div class="meta-label">CLIENT</div>
+        <div class="meta-value">
+          <input type="text" value="${client ? (client.name || '') + (client.company ? ' — ' + client.company : '') : (facture.client_nom || '')}" style="width:190px;"><br>
+          <input type="text" placeholder="Adresse ligne 1" style="width:190px;"><br>
+          <input type="text" placeholder="Code postal, Ville" style="width:190px;"><br>
+          SIRET&nbsp;: <input type="text" placeholder="XXX XXX XXX XXXXX" style="width:150px;">
+        </div>
+      </div>
+      <div class="meta-block" style="flex:0.75; text-align:right;">
+        <div class="meta-label">DATES</div>
+        <div class="meta-value" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+          <label style="display:flex; align-items:center; gap:6px;">
+            <span>Émission</span>
+            <input type="date" value="${dateEmission}" style="width:130px;">
+          </label>
+          <label style="display:flex; align-items:center; gap:6px;">
+            <span>Commande</span>
+            <input type="date" style="width:130px;">
+          </label>
+          <label style="display:flex; align-items:center; gap:6px;">
+            <span>Rapport</span>
+            <input type="date" value="${dateEcheance}" style="width:130px;">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">TYPE D'AUDIT</div>
+    <div class="audit-type-row" style="margin-bottom:24px;">
+      <label id="lbl_menu" class="${isMenu ? 'selected' : ''}">
+        <input type="radio" name="audit_type" value="menu" ${isMenu ? 'checked' : ''} onchange="updateAuditType()">
+        Audit Menu &nbsp;<span style="color:rgba(13,27,42,0.45); font-size:9px;">490 – 790 €</span>
+      </label>
+      <label id="lbl_complet" class="${isComplet ? 'selected' : ''}">
+        <input type="radio" name="audit_type" value="complet" ${isComplet ? 'checked' : ''} onchange="updateAuditType()">
+        Audit Complet &nbsp;<span style="color:rgba(13,27,42,0.45); font-size:9px;">990 – 1 490 €</span>
+      </label>
+      <div style="flex:1; display:flex; align-items:center; gap:8px;">
+        <span style="font-family:'Cormorant Garamond',serif; font-style:italic; font-size:11px; color:rgba(13,27,42,0.5);">Objet :</span>
+        <input type="text" value="${facture.formule || ''}" placeholder="ex : Ingénierie menu — Le Comptoir du Marché" style="width:280px; font-size:10px;">
+      </div>
+    </div>
+
+    <div class="section-title">PRESTATIONS FACTURÉES</div>
+    <table class="service-table">
+      <thead>
+        <tr>
+          <th style="width:46%">DÉSIGNATION</th>
+          <th style="width:12%">QTÉ</th>
+          <th style="width:20%">P.U. HT</th>
+          <th style="width:22%">TOTAL HT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div id="audit_label_display" style="font-weight:700; font-size:10px; margin-bottom:3px;">${auditLabel}</div>
+            <div class="desc-sub">
+              <input type="text" placeholder="Précisions (périmètre, restaurant…)" style="width:220px;" value="${client?.company || ''}">
+            </div>
+          </td>
+          <td>1</td>
+          <td style="text-align:right;">
+            <input type="number" id="ligne1_pu" value="${montant}" min="0" step="0.01" oninput="calcTotals()" style="width:80px; text-align:right;"> €
+          </td>
+          <td style="text-align:right;"><span class="total-read" id="ligne1_total">${fmt(montant)}</span> €</td>
+        </tr>
+        <tr>
+          <td>
+            <div style="font-weight:700; font-size:10px; margin-bottom:3px;">Frais annexes</div>
+            <div class="desc-sub"><input type="text" placeholder="Déplacements, impressions…" style="width:220px;"></div>
+          </td>
+          <td>1</td>
+          <td style="text-align:right;"><input type="number" id="ligne2_pu" placeholder="0" min="0" step="0.01" oninput="calcTotals()" style="width:80px; text-align:right;"> €</td>
+          <td style="text-align:right;"><span class="total-read" id="ligne2_total">—</span> €</td>
+        </tr>
+        <tr>
+          <td>
+            <div style="font-weight:700; font-size:10px; margin-bottom:3px;">Autre</div>
+            <div class="desc-sub"><input type="text" placeholder="Désignation libre…" style="width:220px;"></div>
+          </td>
+          <td><input type="number" id="ligne3_qty" placeholder="1" min="0" step="1" value="1" oninput="calcTotals()" style="width:36px; text-align:center;"></td>
+          <td style="text-align:right;"><input type="number" id="ligne3_pu" placeholder="0" min="0" step="0.01" oninput="calcTotals()" style="width:80px; text-align:right;"> €</td>
+          <td style="text-align:right;"><span class="total-read" id="ligne3_total">—</span> €</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="totals-area">
+      <table class="totals-table">
+        <tr class="total-ht"><td>Montant HT</td><td><span id="display_ht">${fmt(montant)}</span> €</td></tr>
+        <tr class="tva">
+          <td>TVA &nbsp;<select id="tva_rate" onchange="calcTotals()" style="width:52px; border-bottom:none; font-size:9px; color:rgba(13,27,42,0.65);">
+            <option value="0" selected>0 %</option><option value="5.5">5,5 %</option><option value="10">10 %</option><option value="20">20 %</option>
+          </select></td>
+          <td><span id="display_tva">0,00</span> €</td>
+        </tr>
+        <tr class="total-ttc"><td>TOTAL TTC</td><td><span id="display_ttc">${fmt(montant)}</span> €</td></tr>
+      </table>
+    </div>
+
+    <div class="acompte-section on-dark">
+      <div class="acompte-header">ÉCHÉANCIER DE PAIEMENT</div>
+      <div class="acompte-grid">
+        <div class="acompte-item">
+          <div class="acompte-item-label">Acompte à la commande — 50 %</div>
+          <div class="acompte-amount" id="display_acompte">${fmt(acompte)} €</div>
+          <div class="acompte-item-note">Exigible à la signature de la commande</div>
+        </div>
+        <div class="acompte-item" style="border-left:1px solid rgba(201,168,76,0.2); padding-left:20px;">
+          <div class="acompte-item-label">Solde à la remise du rapport — 50 %</div>
+          <div class="acompte-amount solde-color" id="display_solde">${fmt(acompte)} €</div>
+          <div class="acompte-item-note">Exigible à la livraison du rapport final</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="solde-section">
+      <div style="flex:1;">
+        <div class="solde-label">MONTANT DÛ SUR LA PRÉSENTE FACTURE</div>
+        <div class="echéance-radios">
+          <label>
+            <input type="radio" name="echeance" value="acompte" ${isAcompte ? 'checked' : ''} onchange="updateEcheanceDisplay()">
+            Acompte — dû à la signature
+          </label>
+          <label>
+            <input type="radio" name="echeance" value="solde" ${!isAcompte ? 'checked' : ''} onchange="updateEcheanceDisplay()">
+            Solde — dû à la remise du rapport
+          </label>
+        </div>
+      </div>
+      <div class="solde-amount-display" id="echeance_display">${fmt(isAcompte ? acompte : acompte)} <span>€</span></div>
+    </div>
+
+    <div class="payment-section">
+      <div class="payment-box">
+        <div class="payment-box-title">COORDONNÉES BANCAIRES</div>
+        <div class="payment-line"><span class="payment-key">Titulaire</span><span class="payment-val"><input type="text" placeholder="Anthony Grimault" style="width:140px;"></span></div>
+        <div class="payment-line"><span class="payment-key">IBAN</span><span class="payment-val"><input type="text" placeholder="FR76 XXXX XXXX XXXX XXXX XXXX XXX" style="width:200px;"></span></div>
+        <div class="payment-line"><span class="payment-key">BIC</span><span class="payment-val"><input type="text" placeholder="XXXXXXXX" style="width:100px;"></span></div>
+        <div class="payment-line"><span class="payment-key">Banque</span><span class="payment-val"><input type="text" placeholder="Nom de la banque" style="width:140px;"></span></div>
+      </div>
+      <div class="payment-box">
+        <div class="payment-box-title">CONDITIONS</div>
+        <div class="payment-line"><span class="payment-key">Délai de paiement</span><span class="payment-val">30 jours</span></div>
+        <div class="payment-line"><span class="payment-key">Mode de règlement</span><span class="payment-val">Virement bancaire</span></div>
+        <div class="payment-line"><span class="payment-key">Pénalités de retard</span><span class="payment-val">3× taux légal</span></div>
+        <div class="payment-line"><span class="payment-key">Indemnité forfaitaire</span><span class="payment-val">40 € / facture</span></div>
+        <div class="payment-line" style="margin-top:8px;">
+          <span class="payment-key" style="font-size:8.5px; color:rgba(13,27,42,0.4); font-style:italic;">TVA non applicable — Art. 293 B du CGI</span>
+        </div>
+      </div>
+    </div>
+    ${facture.notes ? `<div style="font-family:'Cormorant Garamond',serif; font-style:italic; font-size:11px; color:rgba(13,27,42,0.55); margin-bottom:20px; padding:10px 14px; border-left:3px solid var(--or);">${facture.notes}</div>` : ''}
+  </div>
+
+  <div class="footer">
+    <div class="footer-brand">LA <span>CARTE</span></div>
+    <div class="footer-legal">
+      lacarte.advisory@gmail.com<br>
+      Facture émise conformément aux dispositions en vigueur<br>
+      Tout litige sera soumis à la compétence des tribunaux du ressort du siège social
+    </div>
+  </div>
+</div>
+
+<script>
+  const fmt = v => v.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  function calcTotals() {
+    const l1 = parseFloat(document.getElementById('ligne1_pu').value)||0;
+    const l2 = parseFloat(document.getElementById('ligne2_pu').value)||0;
+    const l3q = parseFloat(document.getElementById('ligne3_qty').value)||1;
+    const l3 = (parseFloat(document.getElementById('ligne3_pu').value)||0)*l3q;
+    const ht = l1+l2+l3;
+    const tvaRate = parseFloat(document.getElementById('tva_rate').value)/100;
+    const tva = ht*tvaRate; const ttc = ht+tva; const acompte = ttc/2;
+    document.getElementById('ligne1_total').textContent = l1>0?fmt(l1):'—';
+    document.getElementById('ligne2_total').textContent = l2>0?fmt(l2):'—';
+    document.getElementById('ligne3_total').textContent = l3>0?fmt(l3):'—';
+    document.getElementById('display_ht').textContent = fmt(ht);
+    document.getElementById('display_tva').textContent = fmt(tva);
+    document.getElementById('display_ttc').textContent = fmt(ttc);
+    document.getElementById('display_acompte').textContent = fmt(acompte)+' €';
+    document.getElementById('display_solde').textContent = fmt(acompte)+' €';
+    updateEcheanceDisplay();
+  }
+  function updateEcheanceDisplay() {
+    const sel = document.querySelector('input[name="echeance"]:checked').value;
+    const val = sel==='acompte'?document.getElementById('display_acompte').textContent:document.getElementById('display_solde').textContent;
+    document.getElementById('echeance_display').innerHTML = val.replace(' €','')+' <span>€</span>';
+  }
+  function updateAuditType() {
+    const val = document.querySelector('input[name="audit_type"]:checked')?.value;
+    document.getElementById('lbl_menu').classList.toggle('selected',val==='menu');
+    document.getElementById('lbl_complet').classList.toggle('selected',val==='complet');
+  }
+</script>
+</body></html>`;
+}
+
 function generateDevisHTML(client, form) {
+
   const today    = new Date();
   const validity = new Date(today); validity.setDate(validity.getDate() + 30);
   const tarifs   = DEVIS_TARIFS[form.formula] || DEVIS_TARIFS.audit_menu;

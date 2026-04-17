@@ -23,6 +23,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ⚠️ Supabase : on passe { storage_path, filename } pour télécharger puis ouvrir
   openAttachment:   (att)      => ipcRenderer.invoke('attachments:open', att),
 
+  // ── Facture éditeur ──────────────────────────────────────────────
+  openFactureEditor: (html) => ipcRenderer.invoke('facture:openEditor', { html }),
+
+  // ── Liens externes ───────────────────────────────────────────────
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+
   // ── Utilisateur ──────────────────────────────────────────────────
   getUserName: ()     => ipcRenderer.invoke('user:getName'),
   setUserName: (name) => ipcRenderer.invoke('user:setName', name),

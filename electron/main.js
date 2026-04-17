@@ -481,6 +481,12 @@ function setupIPC() {
     return true;
   });
 
+  // ══ LIENS EXTERNES ══════════════════════════════════════════════════
+  ipcMain.handle('shell:openExternal', async (_, url) => {
+    await shell.openExternal(url);
+    return true;
+  });
+
   // ══ UTILISATEUR (nom du poste) ══════════════════════════════════════
 
   ipcMain.handle('user:getName', () => userName)
@@ -642,6 +648,20 @@ function setupIPC() {
 
   // ══ EXPORT PDF ════════════════════════════════════════════════════════════
 
+
+  ipcMain.handle('facture:openEditor', async (_, { html }) => {
+    // Écrire dans un fichier temp pour éviter les limites de data URL
+    const tmpPath = path.join(app.getPath('temp'), 'lacarte_facture.html');
+    fs.writeFileSync(tmpPath, html, 'utf-8');
+    const win = new BrowserWindow({
+      width: 1060, height: 920, title: 'Facture — La Carte',
+      webPreferences: { nodeIntegration: true, contextIsolation: false },
+    });
+    await win.loadFile(tmpPath);
+    win.show();
+    return true;
+  });
+
   ipcMain.handle('clients:exportPDF', async (_, { html, filename }) => {
     const { filePath, canceled } = await dialog.showSaveDialog({
       defaultPath: filename,
@@ -680,6 +700,9 @@ function createWindow() {
 
 // ── Démarrage ──────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
+  // 0. Charger le nom d'utilisateur (app.getPath disponible ici)
+  userName = getUserName();
+
   // 1. IPC handlers — toujours enregistrés en premier
   try { setupIPC(); } catch (e) { console.error('setupIPC:', e.message); }
 

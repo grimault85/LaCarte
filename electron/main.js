@@ -510,12 +510,16 @@ function setupIPC() {
 
   ipcMain.handle('suivi:save', async (_, data) => {
     const row = {
-      client_id: data.client_id,
-      mois:      +data.mois  || new Date().getMonth() + 1,
-      annee:     +data.annee || new Date().getFullYear(),
-      statut:    data.statut  || 'attente',
-      notes:     data.notes   || '',
-      actions:   data.actions || '',
+      client_id:            data.client_id,
+      mois:                 +data.mois  || new Date().getMonth() + 1,
+      annee:                +data.annee || new Date().getFullYear(),
+      statut:               data.statut               || 'attente',
+      notes:                data.notes                || '',
+      actions:              data.actions              || '',
+      observations_terrain: data.observations_terrain || '',
+      analyse_carte:        data.analyse_carte        || '',
+      recommandations_mois: data.recommandations_mois || '',
+      message_client:       data.message_client       || '',
     };
     if (data.id) {
       const { error } = await supabase.from('suivis_mensuels').update(row).eq('id', data.id);

@@ -3265,81 +3265,287 @@ function SuiviTab({ client, api, suivis, analyses, menuAnalyses, onReload }) {
 
   async function handleExportPDF(suivi) {
     setExporting(true);
-    const finData = analyses.find(a => a.mois === suivi.mois && a.annee === suivi.annee);
+    const finData  = analyses.find(a => a.mois === suivi.mois && a.annee === suivi.annee);
+    const finPrev  = analyses.find(a => {
+      const prevMois = suivi.mois === 1 ? 12 : suivi.mois - 1;
+      const prevAnn  = suivi.mois === 1 ? suivi.annee - 1 : suivi.annee;
+      return a.mois === prevMois && a.annee === prevAnn;
+    });
     const menuData = menuAnalyses.find(a => {
       const d = new Date(a.created_at);
       return d.getMonth() + 1 === suivi.mois && d.getFullYear() === suivi.annee;
     });
-
     const kFin  = finData ? calcFin(finData) : null;
+    const kPrev = finPrev ? calcFin(finPrev) : null;
     const statut = suiviStatutOf(suivi.statut);
 
-    const finSection = finData && kFin ? `
-      <div class="section-title">📊 Analyse Financière — ${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</div>
-      <div class="grid3">
-        <div class="kpi"><div class="kpi-label">CA Total</div><div class="kpi-val">${fmtEur(finData.ca_total)}</div></div>
-        <div class="kpi"><div class="kpi-label">Ticket Moyen</div><div class="kpi-val">${fmtEur(kFin.tickM)}</div></div>
-        <div class="kpi"><div class="kpi-label">CMV Global</div><div class="kpi-val" style="color:${kFin.cmvG > 33 ? '#dc2626' : '#059669'}">${kFin.cmvG.toFixed(1)}%</div></div>
-        <div class="kpi"><div class="kpi-label">Marge Brute</div><div class="kpi-val">${fmtEur(kFin.mbr)} (${kFin.mbrP.toFixed(1)}%)</div></div>
-        <div class="kpi"><div class="kpi-label">EBE</div><div class="kpi-val" style="color:${kFin.ebeP < 5 ? '#dc2626' : '#059669'}">${fmtEur(kFin.ebe)} (${kFin.ebeP.toFixed(1)}%)</div></div>
-        <div class="kpi"><div class="kpi-label">Point Mort</div><div class="kpi-val">${fmtEur(kFin.pm)}</div></div>
-        <div class="kpi"><div class="kpi-label">Coussin Sécurité</div><div class="kpi-val" style="color:${kFin.cous < 10 ? '#dc2626' : '#059669'}">${kFin.cous.toFixed(1)}%</div></div>
-        <div class="kpi"><div class="kpi-label">Prime Cost</div><div class="kpi-val" style="color:${kFin.pcost > 65 ? '#dc2626' : '#059669'}">${kFin.pcost.toFixed(1)}%</div></div>
-        <div class="kpi"><div class="kpi-label">Couverts / Jour</div><div class="kpi-val">${kFin.covJr.toFixed(0)}</div></div>
-      </div>` : '<div class="section-title">📊 Analyse Financière</div><p style="color:#94a3b8;font-size:12px">Aucune analyse financière liée à ce mois.</p>';
+    const fmtPct = v => `${v.toFixed(1)}%`;
+    const delta  = (cur, prev) => {
+      if (!prev || prev === 0) return '';
+      const d = cur - prev;
+      const sign = d >= 0 ? '+' : '';
+      return `<span style="font-size:10px;color:${d >= 0 ? '#059669' : '#dc2626'};margin-left:4px;">${sign}${d.toFixed(1)}</span>`;
+    };
+    const deltaEur = (cur, prev) => {
+      if (!prev) return '';
+      const d = cur - prev;
+      const sign = d >= 0 ? '+' : '';
+      return `<span style="font-size:10px;color:${d >= 0 ? '#059669' : '#dc2626'};margin-left:4px;">${sign}${Math.round(d).toLocaleString('fr-FR')} €</span>`;
+    };
 
-    const menuSection = menuData ? `
-      <div class="section-title">🍽️ Analyse Menu — ${menuData.nom}</div>
-      <p style="font-size:12px;color:#374151">Analyse réalisée le ${new Date(menuData.created_at).toLocaleDateString('fr-FR')}</p>` :
-      '<div class="section-title">🍽️ Analyse Menu</div><p style="color:#94a3b8;font-size:12px">Aucune analyse menu liée à ce mois.</p>';
+    const kpiRow = (label, val, prev, isBad) => `
+      <tr>
+        <td style="padding:7px 10px;font-size:11px;color:#64748b;">${label}</td>
+        <td style="padding:7px 10px;font-size:13px;font-weight:700;color:${isBad?'#dc2626':'#0D1520'};">${val}${prev ? (typeof prev === 'string' ? delta(parseFloat(val),parseFloat(prev)) : deltaEur(parseFloat(val),parseFloat(prev))) : ''}</td>
+      </tr>`;
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <style>
-        * { box-sizing:border-box; margin:0; padding:0; }
-        body { font-family:'Segoe UI',Arial,sans-serif; color:#1e293b; padding:32px; font-size:13px; line-height:1.5; }
-        .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
-        h1 { font-size:22px; font-weight:800; color:#0D1520; }
-        .subtitle { color:#64748b; font-size:14px; margin-top:2px; }
-        .badge { display:inline-block; border-radius:10px; padding:3px 10px; font-size:11px; font-weight:700; background:${statut.bg}; color:${statut.color}; }
-        .section-title { font-size:13px; font-weight:700; color:#0D1520; margin:20px 0 10px; padding-bottom:6px; border-bottom:2px solid #DDD5B8; }
-        .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:8px; }
-        .kpi { background:#FAF8F2; border:1px solid #DDD5B8; border-radius:8px; padding:10px 12px; }
-        .kpi-label { font-size:9px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
-        .kpi-val { font-size:16px; font-weight:800; color:#0D1520; }
-        .notes-box { background:#f8fafc; border:1px solid #DDD5B8; border-radius:8px; padding:12px; font-size:13px; white-space:pre-wrap; line-height:1.6; }
-        .actions-box { display:flex; flex-direction:column; gap:6px; }
-        .action { background:#FAF8F2; border:1px solid #DDD5B8; border-radius:8px; padding:8px 12px; font-size:12px; }
-        .footer { margin-top:28px; padding-top:12px; border-top:1px solid #DDD5B8; font-size:10px; color:#94a3b8; display:flex; justify-content:space-between; }
-      </style>
-    </head><body>
-      <div class="header">
-        <div>
-          <h1>${client.name} — ${client.company}</h1>
-          <div class="subtitle">Rapport Suivi Mensuel · ${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</div>
-        </div>
-        <span class="badge">${statut.label}</span>
+    const actionsHTML = suivi.actions
+      ? suivi.actions.split('\n').filter(Boolean).map((a, i) =>
+          `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:#FAF8F2;border:1px solid #DDD5B8;border-radius:6px;margin-bottom:6px;">
+            <span style="background:#C9A84C;color:#0D1520;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0;margin-top:1px;">${i+1}</span>
+            <span style="font-size:12px;color:#374151;line-height:1.5;">${a}</span>
+          </div>`
+        ).join('')
+      : '<p style="color:#94a3b8;font-size:12px;font-style:italic;">Aucune action renseignée</p>';
+
+    const recoHTML = suivi.recommandations_mois
+      ? suivi.recommandations_mois.split('\n').filter(Boolean).map((r, i) =>
+          `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:#FAF3E0;border:1px solid rgba(201,168,76,0.3);border-radius:6px;margin-bottom:8px;">
+            <span style="background:#0D1520;color:#C9A84C;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;margin-top:1px;">${i+1}</span>
+            <span style="font-size:12px;color:#374151;line-height:1.55;">${r}</span>
+          </div>`
+        ).join('')
+      : '<p style="color:#94a3b8;font-size:12px;font-style:italic;">Aucune recommandation renseignée</p>';
+
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'DM Sans',Arial,sans-serif; color:#1e293b; background:#fff; font-size:12px; line-height:1.5; }
+  .page { width:210mm; min-height:297mm; padding:14mm 16mm 12mm; page-break-after:always; position:relative; }
+  .page:last-child { page-break-after:avoid; }
+
+  /* Header */
+  .lc-header { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:0; padding-bottom:14px; }
+  .lc-logo-la { font-family:'DM Serif Display',serif; font-size:9px; color:#C9A84C; letter-spacing:4px; display:block; }
+  .lc-logo-carte { font-family:'DM Serif Display',serif; font-size:20px; color:#0D1520; letter-spacing:4px; line-height:1; }
+  .lc-logo-sub { font-size:8px; color:#94a3b8; letter-spacing:2px; text-transform:uppercase; margin-top:2px; }
+  .gold-bar { height:2px; background:linear-gradient(90deg,#C9A84C 0%,rgba(201,168,76,0.1) 100%); margin-bottom:18px; }
+  .page-label { font-size:10px; color:#94a3b8; text-align:right; }
+  .page-label strong { color:#C9A84C; font-size:11px; display:block; }
+
+  /* Cover */
+  .cover-tag { background:#0D1520; color:#C9A84C; font-size:8px; font-weight:700; letter-spacing:3px; text-transform:uppercase; padding:5px 12px; display:inline-block; margin-bottom:24px; }
+  .cover-title { font-family:'DM Serif Display',serif; font-size:28px; color:#0D1520; line-height:1.15; margin-bottom:6px; font-weight:400; }
+  .cover-sub { font-size:14px; color:#64748b; margin-bottom:28px; }
+  .cover-gold { width:40px; height:2px; background:#C9A84C; margin-bottom:28px; }
+  .cover-client { background:#0D1520; border-radius:10px; padding:20px 22px; margin-bottom:20px; }
+  .cover-client-label { font-size:9px; font-weight:700; color:#C9A84C; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:8px; }
+  .cover-client-name { font-family:'DM Serif Display',serif; font-size:22px; color:#EEE6C9; font-weight:400; }
+  .cover-client-co { font-size:12px; color:rgba(238,230,201,0.5); margin-top:4px; }
+  .cover-meta { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:24px; }
+  .cover-meta-item { background:#FAF8F2; border:1px solid #DDD5B8; border-radius:8px; padding:10px 12px; }
+  .cover-meta-label { font-size:8px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:3px; }
+  .cover-meta-val { font-size:13px; font-weight:700; color:#0D1520; }
+  .cover-conseiller { display:flex; align-items:center; gap:12px; border:1px solid #C9A84C; border-radius:8px; padding:12px 14px; background:#FAF3E0; }
+  .cover-avatar { width:32px; height:32px; background:#C9A84C; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#0D1520; font-weight:800; font-size:13px; flex-shrink:0; }
+  .cover-con-name { font-weight:700; font-size:12px; color:#0D1520; }
+  .cover-con-sub { font-size:10px; color:#64748b; margin-top:1px; }
+
+  /* Message client */
+  .msg-box { background:#FAF3E0; border-left:3px solid #C9A84C; border-radius:0 8px 8px 0; padding:14px 16px; margin-bottom:18px; font-size:13px; color:#374151; line-height:1.7; font-style:italic; }
+
+  /* Sections */
+  .section-hd { font-family:'DM Serif Display',serif; font-size:15px; color:#0D1520; font-weight:400; margin:20px 0 12px; padding-bottom:7px; border-bottom:1.5px solid #DDD5B8; display:flex; align-items:center; gap:8px; }
+  .section-hd span { font-size:16px; }
+
+  /* KPI table */
+  .kpi-table { width:100%; border-collapse:collapse; margin-bottom:14px; }
+  .kpi-table thead tr { background:#0D1520; }
+  .kpi-table thead th { padding:7px 10px; text-align:left; font-size:9px; font-weight:700; color:#C9A84C; text-transform:uppercase; letter-spacing:0.8px; }
+  .kpi-table thead th:last-child { text-align:right; color:#EEE6C9; }
+  .kpi-table tbody tr:nth-child(even) { background:#FAF8F2; }
+  .kpi-table tbody tr { border-bottom:1px solid #EEE6C9; }
+
+  /* Qualitative */
+  .qual-box { background:#fff; border:1px solid #DDD5B8; border-radius:8px; padding:12px 14px; margin-bottom:14px; }
+  .qual-label { font-size:9px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+  .qual-text { font-size:12px; color:#374151; line-height:1.7; white-space:pre-wrap; }
+
+  /* Footer */
+  .page-footer { position:absolute; bottom:8mm; left:16mm; right:16mm; display:flex; justify-content:space-between; font-size:8px; color:#94a3b8; border-top:1px solid #EEE6C9; padding-top:5px; }
+
+  @media print { body { background:none; } .page { box-shadow:none; } }
+</style>
+</head><body>
+
+<!-- ══ PAGE 1 — COUVERTURE ══════════════════════════════════════ -->
+<div class="page">
+  <div class="lc-header">
+    <div>
+      <span class="lc-logo-la">LA</span>
+      <span class="lc-logo-carte">CARTE</span>
+      <span class="lc-logo-sub">Restaurant Advisory</span>
+    </div>
+    <div class="page-label">
+      <strong>RAPPORT MENSUEL</strong>
+      ${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="cover-tag">Rapport de suivi mensuel</div>
+  <div class="cover-title">Synthèse &amp; Recommandations<br>${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</div>
+  <div class="cover-sub">Accompagnement La Carte</div>
+  <div class="cover-gold"></div>
+
+  <div class="cover-client">
+    <div class="cover-client-label">Établissement suivi</div>
+    <div class="cover-client-name">${client.name}</div>
+    <div class="cover-client-co">${client.company}</div>
+  </div>
+
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <div class="cover-meta-label">Période</div>
+      <div class="cover-meta-val">${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="cover-meta-label">Statut</div>
+      <div class="cover-meta-val" style="color:${statut.color}">${statut.label}</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="cover-meta-label">Formule</div>
+      <div class="cover-meta-val">${(() => { const f = {audit_menu:'Audit Menu',audit_menu_financier:'Audit Complet',suivi_mensuel:'Retainer'}; return f[client.formula]||'—'; })()}</div>
+    </div>
+  </div>
+
+  ${suivi.message_client ? `<div class="msg-box">${suivi.message_client}</div>` : ''}
+
+  <div class="cover-conseiller">
+    <div class="cover-avatar">A</div>
+    <div>
+      <div class="cover-con-name">Anthony Grimault — Votre Conseiller</div>
+      <div class="cover-con-sub">lacarte.advisory@gmail.com</div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>La Carte — Document confidentiel</span>
+    <span>Rapport ${MOIS_LABELS[suivi.mois-1]} ${suivi.annee} — ${client.company}</span>
+  </div>
+</div>
+
+<!-- ══ PAGE 2 — DONNÉES FINANCIÈRES ═══════════════════════════════ -->
+<div class="page">
+  <div class="lc-header">
+    <div><span class="lc-logo-la">LA</span><span class="lc-logo-carte">CARTE</span></div>
+    <div class="page-label"><strong>ANALYSE FINANCIÈRE</strong>${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="section-hd"><span>💰</span> Indicateurs financiers du mois</div>
+
+  ${kFin ? `
+  <table class="kpi-table">
+    <thead><tr>
+      <th>Indicateur</th>
+      <th style="text-align:right;">Valeur ${MOIS_LABELS[suivi.mois-1]}</th>
+    </tr></thead>
+    <tbody>
+      ${kpiRow('CA Total',           fmtEur(finData.ca_total),     kPrev ? fmtEur(finPrev.ca_total) : null,    false)}
+      ${kpiRow('Ticket Moyen',       fmtEur(kFin.tickM),           kPrev ? fmtEur(kPrev.tickM) : null,         false)}
+      ${kpiRow('Couverts / Jour',    kFin.covJr.toFixed(0),        kPrev ? kPrev.covJr.toFixed(0) : null,       false)}
+      ${kpiRow('CMV Global',         fmtPct(kFin.cmvG),            kPrev ? fmtPct(kPrev.cmvG) : null,          kFin.cmvG > 33)}
+      ${kpiRow('Masse Salariale %',  fmtPct(kFin.msP),             kPrev ? fmtPct(kPrev.msP) : null,           kFin.msP > 38)}
+      ${kpiRow('Prime Cost',         fmtPct(kFin.pcost),           kPrev ? fmtPct(kPrev.pcost) : null,         kFin.pcost > 65)}
+      ${kpiRow('Marge Brute',        `${fmtEur(kFin.mbr)} (${fmtPct(kFin.mbrP)})`, null,                     kFin.mbrP < 55)}
+      ${kpiRow('EBE',                `${fmtEur(kFin.ebe)} (${fmtPct(kFin.ebeP)})`, null,                     kFin.ebeP < 5)}
+      ${kpiRow('Point Mort',         fmtEur(kFin.pm),              null,                                        false)}
+      ${kpiRow('Coussin de Sécurité',fmtPct(kFin.cous),            kPrev ? fmtPct(kPrev.cous) : null,          kFin.cous < 10)}
+    </tbody>
+  </table>
+  ${kPrev ? `<p style="font-size:10px;color:#94a3b8;margin-top:-8px;margin-bottom:14px;">Les flèches indiquent l'évolution par rapport à ${MOIS_LABELS[(suivi.mois===1?12:suivi.mois)-2]} ${suivi.mois===1?suivi.annee-1:suivi.annee}</p>` : ''}
+  ` : '<div style="padding:20px;background:#FAF8F2;border-radius:8px;color:#94a3b8;font-size:12px;text-align:center;">Aucune analyse financière liée à ce mois</div>'}
+
+  ${menuData ? `
+  <div class="section-hd" style="margin-top:20px;"><span>🍽️</span> Analyse Carte — ${menuData.nom}</div>
+  <p style="font-size:12px;color:#64748b;">Analyse réalisée le ${new Date(menuData.created_at).toLocaleDateString('fr-FR')}</p>
+  ` : ''}
+
+  <div class="page-footer">
+    <span>La Carte — Document confidentiel</span>
+    <span>Page 2 — ${client.company}</span>
+  </div>
+</div>
+
+<!-- ══ PAGE 3 — ANALYSE QUALITATIVE ══════════════════════════════ -->
+<div class="page">
+  <div class="lc-header">
+    <div><span class="lc-logo-la">LA</span><span class="lc-logo-carte">CARTE</span></div>
+    <div class="page-label"><strong>ANALYSE &amp; RECOMMANDATIONS</strong>${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</div>
+  </div>
+  <div class="gold-bar"></div>
+
+  ${suivi.observations_terrain ? `
+  <div class="section-hd"><span>👁️</span> Observations terrain</div>
+  <div class="qual-box"><div class="qual-text">${suivi.observations_terrain}</div></div>
+  ` : ''}
+
+  ${suivi.analyse_carte ? `
+  <div class="section-hd"><span>🍽️</span> Analyse de la carte</div>
+  <div class="qual-box"><div class="qual-text">${suivi.analyse_carte}</div></div>
+  ` : ''}
+
+  <div class="section-hd"><span>✅</span> Actions décidées ce mois</div>
+  ${actionsHTML}
+
+  <div class="page-footer">
+    <span>La Carte — Document confidentiel</span>
+    <span>Page 3 — ${client.company}</span>
+  </div>
+</div>
+
+<!-- ══ PAGE 4 — RECOMMANDATIONS M+1 ══════════════════════════════ -->
+<div class="page">
+  <div class="lc-header">
+    <div><span class="lc-logo-la">LA</span><span class="lc-logo-carte">CARTE</span></div>
+    <div class="page-label"><strong>PLAN D'ACTION</strong>${MOIS_LABELS[suivi.mois===12?0:suivi.mois]} ${suivi.mois===12?suivi.annee+1:suivi.annee}</div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="section-hd"><span>🎯</span> Recommandations pour ${MOIS_LABELS[suivi.mois===12?0:suivi.mois]} ${suivi.mois===12?suivi.annee+1:suivi.annee}</div>
+  ${recoHTML}
+
+  ${suivi.notes ? `
+  <div class="section-hd" style="margin-top:20px;"><span>📝</span> Notes internes</div>
+  <div class="qual-box" style="background:#f8fafc;"><div class="qual-text" style="color:#94a3b8;font-style:italic;">${suivi.notes}</div></div>
+  ` : ''}
+
+  <div style="margin-top:auto;padding-top:20px;border-top:1.5px solid #DDD5B8;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px;">
+      <div>
+        <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px;">Document établi par</div>
+        <div style="font-size:12px;font-weight:700;color:#0D1520;">Anthony Grimault</div>
+        <div style="font-size:10px;color:#64748b;">La Carte · lacarte.advisory@gmail.com</div>
       </div>
-
-      ${finSection}
-      ${menuSection}
-
-      ${suivi.notes ? `<div class="section-title">📝 Notes & Observations</div><div class="notes-box">${suivi.notes}</div>` : ''}
-
-      ${suivi.actions ? `
-        <div class="section-title">✅ Actions décidées ce mois</div>
-        <div class="actions-box">
-          ${suivi.actions.split('\n').filter(Boolean).map(a =>
-            `<div class="action">→ ${a}</div>`
-          ).join('')}
-        </div>` : ''}
-
-      <div class="footer">
-        <span>La Carte Consulting · Rapport généré le ${new Date().toLocaleDateString('fr-FR')}</span>
-        <span>${client.name} — ${MOIS_LABELS[suivi.mois-1]} ${suivi.annee}</span>
+      <div style="text-align:right;">
+        <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px;">Rapport généré le</div>
+        <div style="font-size:12px;color:#0D1520;">${new Date().toLocaleDateString('fr-FR')}</div>
+        <div style="font-size:10px;color:#64748b;">Document confidentiel</div>
       </div>
-    </body></html>`;
+    </div>
+  </div>
 
-    await api.exportPDF({ html, filename: `Suivi_${client.name.replace(/\s+/g,'_')}_${MOIS_LABELS[suivi.mois-1]}_${suivi.annee}.pdf` });
+  <div class="page-footer">
+    <span>La Carte — Document confidentiel</span>
+    <span>Page 4 — ${client.company}</span>
+  </div>
+</div>
+
+</body></html>`;
+
+    await api.exportPDF({ html, filename: `Rapport_${client.company.replace(/\s+/g,'_')}_${MOIS_LABELS[suivi.mois-1]}_${suivi.annee}.pdf` });
     setExporting(false);
   }
 
@@ -3530,11 +3736,15 @@ function SuiviDetail({ suivi, client, analyses, menuAnalyses, onEdit, onDelete, 
 // ── Formulaire Suivi Mensuel ──────────────────────────────────────
 function SuiviForm({ data, onSave, onCancel }) {
   const [form, setForm] = useState({
-    mois:    data?.mois    || new Date().getMonth() + 1,
-    annee:   data?.annee   || new Date().getFullYear(),
-    statut:  data?.statut  || 'attente',
-    notes:   data?.notes   || '',
-    actions: data?.actions || '',
+    mois:                 data?.mois    || new Date().getMonth() + 1,
+    annee:                data?.annee   || new Date().getFullYear(),
+    statut:               data?.statut  || 'attente',
+    notes:                data?.notes   || '',
+    actions:              data?.actions || '',
+    observations_terrain: data?.observations_terrain || '',
+    analyse_carte:        data?.analyse_carte        || '',
+    recommandations_mois: data?.recommandations_mois || '',
+    message_client:       data?.message_client       || '',
     ...(data || {}),
   });
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -3583,19 +3793,48 @@ function SuiviForm({ data, onSave, onCancel }) {
         </div>
       </div>
 
+      {/* Champs quantitatifs */}
       <div style={{ ...card, marginBottom:12 }}>
-        <label style={lbl}>Notes & Observations</label>
-        <textarea rows={4} value={form.notes} onChange={e => set('notes', e.target.value)}
-          style={{ ...inp, resize:'vertical', minHeight:90, marginTop:4 }}
-          placeholder="Points abordés pendant le suivi, contexte du mois, observations terrain…" />
+        <div style={{ fontSize:11, fontWeight:700, color:'#C9A84C', textTransform:'uppercase', letterSpacing:0.8, marginBottom:12 }}>📊 Données du mois</div>
+        <label style={lbl}>Notes & Observations internes</label>
+        <textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)}
+          style={{ ...inp, resize:'vertical', minHeight:70, marginTop:4 }}
+          placeholder="Points abordés, contexte du mois, notes pour vous…" />
+        <label style={{ ...lbl, marginTop:12, display:'block' }}>Actions décidées ce mois</label>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 6px' }}>Une action par ligne</p>
+        <textarea rows={4} value={form.actions} onChange={e => set('actions', e.target.value)}
+          style={{ ...inp, resize:'vertical', minHeight:90 }}
+          placeholder={"Renégocier fournisseur viande\nRetravailler description des entrées"} />
       </div>
 
-      <div style={card}>
-        <label style={lbl}>Actions décidées ce mois</label>
-        <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 6px' }}>Une action par ligne</p>
-        <textarea rows={5} value={form.actions} onChange={e => set('actions', e.target.value)}
-          style={{ ...inp, resize:'vertical', minHeight:110 }}
-          placeholder={"Renégocier fournisseur viande\nRetravailler description des entrées\nSupprimer les 2 plats poids morts"} />
+      {/* Champs qualitatifs — votre valeur ajoutée */}
+      <div style={{ ...card, marginBottom:12, borderLeft:'3px solid #C9A84C' }}>
+        <div style={{ fontSize:11, fontWeight:700, color:'#C9A84C', textTransform:'uppercase', letterSpacing:0.8, marginBottom:4 }}>✍️ Votre analyse — ce qui ira dans le rapport client</div>
+        <p style={{ fontSize:11, color:'#94a3b8', marginBottom:14 }}>Ces champs constituent le cœur du rapport. Votre regard terrain, votre expérience.</p>
+
+        <label style={lbl}>Observations terrain du mois</label>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 6px' }}>Ce que vous avez vu, ressenti, constaté ce mois-ci dans l'établissement ou lors des échanges</p>
+        <textarea rows={4} value={form.observations_terrain} onChange={e => set('observations_terrain', e.target.value)}
+          style={{ ...inp, resize:'vertical', minHeight:90, marginBottom:14 }}
+          placeholder="Ex: La brigade manque de rigueur sur le grammage des entrées. Bonne dynamique sur le brunch du dimanche, à capitaliser. Fournisseur viande à renégocier en juin…" />
+
+        <label style={lbl}>Analyse de la carte ce mois</label>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 6px' }}>Évolution du menu, plats à repositionner, nouvelles opportunités</p>
+        <textarea rows={4} value={form.analyse_carte} onChange={e => set('analyse_carte', e.target.value)}
+          style={{ ...inp, resize:'vertical', minHeight:90, marginBottom:14 }}
+          placeholder="Ex: Le plat du jour génère 40% des couverts mais son CMV dépasse 35%. Retravailler la recette ou ajuster le prix de 12€ à 13,50€ pour revenir sous les 30%…" />
+
+        <label style={lbl}>Recommandations pour le mois prochain</label>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 6px' }}>Vos priorités d'action pour M+1, dans l'ordre d'importance</p>
+        <textarea rows={4} value={form.recommandations_mois} onChange={e => set('recommandations_mois', e.target.value)}
+          style={{ ...inp, resize:'vertical', minHeight:90, marginBottom:14 }}
+          placeholder={"1. Ajuster le prix du plat du jour à 13,50€\n2. Mettre en avant les Vins au verre (marge +62%)\n3. Supprimer les 2 desserts poids morts de la carte"} />
+
+        <label style={lbl}>Message personnalisé au client</label>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 6px' }}>Mot d'introduction ou de clôture du rapport, dans votre ton</p>
+        <textarea rows={3} value={form.message_client} onChange={e => set('message_client', e.target.value)}
+          style={{ ...inp, resize:'vertical', minHeight:70 }}
+          placeholder="Ex: Ce mois marque une vraie progression — votre CMV a baissé de 2 points. Les ajustements de tarifs que nous avons décidés ensemble commencent à produire leurs effets…" />
       </div>
     </div>
   );
@@ -4362,7 +4601,7 @@ const EMAIL_TEMPLATES = [
     subject: '[La Carte] Votre demande d\'accompagnement',
     body: `Bonjour {{prenom}},
 
-Merci pour votre intérêt pour La Carte Advisory.
+Merci pour votre intérêt pour La Carte.
 
 J'ai bien pris connaissance de votre situation et je serais ravi(e) d'échanger avec vous pour voir comment je peux vous accompagner dans l'optimisation de {{etablissement}}.
 

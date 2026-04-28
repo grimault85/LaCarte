@@ -1,5 +1,7 @@
 # La Carte — Application de gestion cabinet conseil restauration
 
+**v5.0**
+
 Application desktop (Windows / macOS / Linux) + version web, conçue pour le cabinet **La Carte Advisory** — suivi des missions d'audit et de conseil en restauration.
 
 ---

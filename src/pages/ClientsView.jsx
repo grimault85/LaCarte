@@ -4063,7 +4063,7 @@ function generateDevisHTML(client, form) {
 
     <div style="background:#f8fafc;border:1px solid #DDD5B8;border-radius:6px;padding:12px 16px;margin-bottom:20px;font-size:10.5px;color:#374151;line-height:1.65;">
       <div style="font-size:9px;font-weight:700;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Contexte de la mission</div>
-      ${form.contexte || 'Suite à notre premier contact, La Carte vous soumet cette proposition sur mesure. Forte de 15 ans d\'expérience en restauration combinée à une expertise comptable et revenue management, notre approche 100 % distancielle vous permet d\'accéder à un niveau de conseil habituellement réservé aux groupes, au tarif d\'un prestataire indépendant.'}
+      ${form.contexte || 'Suite à notre premier contact, La Carte vous soumet cette proposition sur mesure. Forte de 12 ans d\'expérience en restauration combinée à une expertise comptable et revenue management, notre approche 100 % distancielle vous permet d\'accéder à un niveau de conseil habituellement réservé aux groupes, au tarif d\'un prestataire indépendant.'}
     </div>
 
     <div class="sommaire">

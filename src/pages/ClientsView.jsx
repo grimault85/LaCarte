@@ -3357,7 +3357,7 @@ function EmailModal({ client, onClose, api: apiProp }) {
     '{{date_limite}}': dateLimiteStr,
     '{{mois}}': moisCourant,
     '{{mois_precedent}}': moisPrec,
-    '{{delai}}': client.formula === 'audit_menu_financier' ? '10' : '7',
+    '{{delai}}': client.formula === 'audit_menu_financier' ? '15' : '10',
     '{{numero_facture}}': '[N° Facture]',
     '{{date_emission}}': today.toLocaleDateString('fr-FR'),
     '{{date_echeance}}': '[Date échéance]',
@@ -4102,7 +4102,7 @@ function generateDevisHTML(client, form) {
         </div>
         <div class="formula-price">
           <div class="formula-price-val">À partir de 490 €</div>
-          <div class="formula-price-sub">Livraison sous 7 jours ouvrés</div>
+          <div class="formula-price-sub">Livraison sous 10 jours ouvrés</div>
         </div>
       </div>
       <div style="margin-bottom:10px;">
@@ -4144,7 +4144,7 @@ function generateDevisHTML(client, form) {
         </div>
         <div class="formula-price">
           <div class="formula-price-val">À partir de 990 €</div>
-          <div class="formula-price-sub">Livraison sous 10 jours · <span class="rec-badge">★ RECOMMANDÉ</span></div>
+          <div class="formula-price-sub">Livraison sous 15 jours · <span class="rec-badge">★ RECOMMANDÉ</span></div>
         </div>
       </div>
       <div style="margin-bottom:10px;">
@@ -4263,7 +4263,7 @@ function generateDevisHTML(client, form) {
       <div class="engagement">
         <div class="engagement-icon">⏱</div>
         <div class="engagement-title">Délais garantis</div>
-        <div class="engagement-text">Les délais indiqués sont contractuels. Toute remise hors délai ouvre droit à une réduction de 10 % par jour ouvré de retard, plafonnée à 30 %. F01 : 7 jours · F02 : 10 jours · Retainer : J+5 du mois.</div>
+        <div class="engagement-text">Les délais indiqués sont contractuels. Toute remise hors délai ouvre droit à une réduction de 10 % par jour ouvré de retard, plafonnée à 30 %. F01 : 10 jours · F02 : 15 jours · Retainer : J+5 du mois.</div>
       </div>
       <div class="engagement">
         <div class="engagement-icon">🔒</div>
@@ -4417,8 +4417,8 @@ function generateDevisHTML(client, form) {
     <strong>Mission :</strong> Ensemble de la prestation depuis la signature jusqu'à la remise du livrable final.</div>
 
     ${artTitle('03', 'Prestations proposées')}
-    ${artStyle}<strong>Audit Menu (490–790 €) :</strong> Analyse de la carte, matrice menu engineering, recommandations de re-pricing et plan d'action. Délai : 7 jours ouvrés.<br>
-    <strong>Audit Complet (990–1 490 €) :</strong> Audit Menu augmenté de l'analyse financière complète. Dashboard Excel livré. Délai : 10 jours ouvrés.<br>
+    ${artStyle}<strong>Audit Menu (490–790 €) :</strong> Analyse de la carte, matrice menu engineering, recommandations de re-pricing et plan d'action. Délai : 10 jours ouvrés.<br>
+    <strong>Audit Complet (990–1 490 €) :</strong> Audit Menu augmenté de l'analyse financière complète. Dashboard Excel livré. Délai : 15 jours ouvrés.<br>
     <strong>Retainer Mensuel (490–690 €/mois) :</strong> Accompagnement continu avec revue mensuelle, rapport PDF, visio et accès email. Engagement minimum 3 mois.</div>
 
     ${cgvFooter(6)}

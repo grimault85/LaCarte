@@ -119,7 +119,7 @@ function ComptaDevis({ api, clients }) {
   const totalAccepte = items.filter(i => i.statut === 'accepte').reduce((s, i) => s + (+i.montant || 0), 0);
   const totalEnvoye = items.filter(i => i.statut === 'envoye').reduce((s, i) => s + (+i.montant || 0), 0);
 
-  if (showForm || editing) return <ComptaDevisForm data={editing} clients={clients} onSave={handleSave} onCancel={() => { setShowForm(false); setEditing(null); }} />;
+  if (showForm || editing) return <ComptaDevisForm api={api} data={editing} clients={clients} onSave={handleSave} onCancel={() => { setShowForm(false); setEditing(null); }} />;
 
   return (
     <div>
@@ -192,7 +192,7 @@ function ComptaDevis({ api, clients }) {
   );
 }
 
-function ComptaDevisForm({ data, clients, onSave, onCancel }) {
+function ComptaDevisForm({ api, data, clients, onSave, onCancel }) {
   const [loadingNum, setLoadingNum] = useState(!data?.id);
   const [form, setForm] = useState({
     numero: '',
@@ -299,6 +299,7 @@ function ComptaFactures({ api, clients }) {
 
   if (editing) return (
     <ComptaFactureForm
+      api={api}
       data={editing === true ? null : editing}
       clients={clients}
       statuts={FACT_STATUTS}
@@ -390,7 +391,7 @@ function ComptaFactures({ api, clients }) {
   );
 }
 
-function ComptaFactureForm({ data, clients, statuts, onSave, onCancel }) {
+function ComptaFactureForm({ api, data, clients, statuts, onSave, onCancel }) {
   const [numero, setNumero] = useState('');
   const [loading, setLoading] = useState(!data?.id);
   const [form, setForm] = useState({

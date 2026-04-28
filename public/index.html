@@ -1,17 +1,119 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AuditTrack</title>
+    <title>La Carte - Conseil CHR</title>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        overflow: hidden;
+      }
+      input, select, textarea, button { font-family: inherit; }
+
+      /* ── Variables light mode (défaut) ─────────────────────── */
+      :root {
+        --bg2:     #FAF8F2;
+        --bg3:     #EDE8D5;
+        --surface: #FFFDF8;
+        --border:  #DDD5B8;
+        --text:    #0D1520;
+        --muted:   #94a3b8;
+        --gold:    #C9A84C;
+      }
+
+      /* ── Variables dark mode ───────────────────────────────── */
+      body.lc-dark {
+        --bg2:     #111d2e;
+        --bg3:     #162030;
+        --surface: #1a2840;
+        --border:  #243350;
+        --text:    #e2dcc8;
+        --muted:   #94a3b8;
+        --gold:    #C9A84C;
+        background: #162030;
+        color: #e2dcc8;
+      }
+
+      /* ── Surfaces crème → dark ─────────────────────────────── */
+      body.lc-dark div[style*="background: rgb(255, 253, 248)"],
+      body.lc-dark div[style*="background: #FFFDF8"],
+      body.lc-dark div[style*="background:#FFFDF8"],
+      body.lc-dark div[style*="background: #FAF8F2"],
+      body.lc-dark div[style*="background:#FAF8F2"],
+      body.lc-dark div[style*="background: #FAF3E0"],
+      body.lc-dark div[style*="background: rgb(250, 248, 242)"],
+      body.lc-dark div[style*="background: rgb(250, 243, 224)"],
+      body.lc-dark div[style*="background: rgb(237, 232, 213)"],
+      body.lc-dark div[style*="background: #EDE8D5"],
+      body.lc-dark div[style*="background:#EDE8D5"] { background-color: #1a2840 !important; }
+
+      /* ── Textes sombres → clairs ───────────────────────────── */
+      body.lc-dark [style*="color: rgb(13, 21, 32)"],
+      body.lc-dark [style*="color: #0D1520"],
+      body.lc-dark [style*="color:#0D1520"]               { color: #e2dcc8 !important; }
+      body.lc-dark [style*="color: rgb(30, 41, 59)"],
+      body.lc-dark [style*="color: #1e293b"],
+      body.lc-dark [style*="color:#1e293b"]               { color: #cbd5e1 !important; }
+      body.lc-dark [style*="color: rgb(55, 65, 81)"],
+      body.lc-dark [style*="color: #374151"],
+      body.lc-dark [style*="color:#374151"]               { color: #94a3b8 !important; }
+      body.lc-dark [style*="color: rgb(100, 116, 139)"],
+      body.lc-dark [style*="color: #64748b"],
+      body.lc-dark [style*="color:#64748b"]               { color: #7a8fa3 !important; }
+
+      /* ── Bordures ──────────────────────────────────────────── */
+      body.lc-dark [style*="border: 1px solid rgb(221, 213, 184)"],
+      body.lc-dark [style*="border: 1px solid #DDD5B8"],
+      body.lc-dark [style*="border:1px solid #DDD5B8"],
+      body.lc-dark [style*="border-bottom: 1px solid #DDD5B8"],
+      body.lc-dark [style*="border-bottom: 2px solid #DDD5B8"],
+      body.lc-dark [style*="border-top: 1px solid #DDD5B8"],
+      body.lc-dark [style*="border-color: rgb(221, 213, 184)"] { border-color: #243350 !important; }
+
+      /* ── Inputs ────────────────────────────────────────────── */
+      body.lc-dark input, body.lc-dark textarea, body.lc-dark select {
+        background: #111d2e !important;
+        color: #e2dcc8 !important;
+        border-color: #243350 !important;
+      }
+      body.lc-dark input::placeholder,
+      body.lc-dark textarea::placeholder { color: #4a5c70 !important; }
+
+      /* ── Boutons secondaires ───────────────────────────────── */
+      body.lc-dark button[style*="background: rgb(255, 253, 248)"],
+      body.lc-dark button[style*="background:#FFFDF8"],
+      body.lc-dark button[style*="background: #FFFDF8"] {
+        background: #1a2840 !important;
+        color: #e2dcc8 !important;
+        border-color: #243350 !important;
+      }
+
+      /* ── Tableaux ──────────────────────────────────────────── */
+      body.lc-dark [style*="background: rgb(250, 248, 242)"],
+      body.lc-dark tr[style*="background"] { background: #1a2840 !important; }
+      body.lc-dark th, body.lc-dark td     { color: #cbd5e1 !important; }
+
+      /* ── Badges / divers ───────────────────────────────────── */
+      body.lc-dark [style*="background: rgb(248, 250, 252)"],
+      body.lc-dark [style*="background: #f8fafc"]          { background: #111d2e !important; }
+      body.lc-dark [style*="background: white"],
+      body.lc-dark [style*="background: #fff"],
+      body.lc-dark [style*="background:#fff"],
+      body.lc-dark [style*="background: rgb(255, 255, 255)"] { background: #1a2840 !important; }
+
+      /* ── Sticky headers ────────────────────────────────────── */
+      body.lc-dark [style*="position: sticky"],
+      body.lc-dark [style*="position:sticky"] { background: #111d2e !important; }
+
+      /* ── Scrollbar ─────────────────────────────────────────── */
       ::-webkit-scrollbar { width: 5px; height: 5px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 3px; }
       ::-webkit-scrollbar-thumb:hover { background: #b0b0b0; }
-      input, select, textarea, button { font-family: inherit; }
+      body.lc-dark ::-webkit-scrollbar-track { background: #0D1520; }
+      body.lc-dark ::-webkit-scrollbar-thumb { background: #243350; }
     </style>
   </head>
   <body>

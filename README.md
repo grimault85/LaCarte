@@ -50,11 +50,28 @@ Le fichier `.exe` sera dans le dossier `dist/`.
 
 ```
 la_carte/
-├── src/
-│   └── App.js              # Application React (~9000 lignes)
 ├── electron/
-│   ├── main.js             # Processus principal Electron + handlers IPC
+│   ├── main.js             # Processus principal Electron + handlers IPC + Supabase
 │   └── preload.js          # Pont contextBridge (sécurité)
+├── src/
+│   ├── index.js            # Point d'entrée React
+│   ├── App.js              # Racine (routing, dark mode, reminders)
+│   ├── api.js              # Pont vers window.electronAPI
+│   ├── constants.js        # Étapes pipeline, formules, tâches, priorités
+│   ├── utils.js            # Fonctions utilitaires (dates, overdue…)
+│   ├── styles.js           # Variables CSS et styles partagés
+│   ├── components/
+│   │   ├── Sidebar.jsx     # Navigation latérale
+│   │   ├── Badge.jsx       # Badges de statut
+│   │   └── Icons.jsx       # Icônes SVG internes
+│   └── pages/
+│       ├── Dashboard.jsx         # Vue d'ensemble avec KPIs
+│       ├── ClientsView.jsx       # Pipeline clients + fiche détail
+│       ├── DossierInterne.jsx    # Documents et suivi interne
+│       ├── Comptabilite.jsx      # Suivi comptable et facturation
+│       ├── Ressources.jsx        # Bibliothèque de ressources
+│       ├── ReseauxSociaux.jsx    # Planification réseaux sociaux
+│       └── ParametresCabinet.jsx # Paramètres du cabinet
 ├── public/
 ├── package.json
 └── .gitignore

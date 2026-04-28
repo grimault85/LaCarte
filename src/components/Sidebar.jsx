@@ -21,7 +21,7 @@ const Sidebar = memo(function Sidebar({ view, setView, totalClients, overdueCoun
           </div>
           <div>
             <div style={{ color: '#DDD5B8', fontWeight: 800, fontSize: 15, letterSpacing: -0.3 }}>La Carte</div>
-            <div style={{ color: '#334155', fontSize: 10, marginTop: 1 }}>v2.0</div>
+            <div style={{ color: '#334155', fontSize: 10, marginTop: 1 }}>v5.0</div>
           </div>
         </div>
       </div>

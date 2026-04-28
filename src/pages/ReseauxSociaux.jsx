@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { PALETTE, card, cardH, lbl, inp, iconBtn, overlay, modal, btnPrimary, btnSec } from '../styles';
 import Badge from '../components/Badge';
+import ConfirmModal from '../components/ConfirmModal';
 // ══════════════════════════════════════════════════════════════════
 // RÉSEAUX SOCIAUX
 // ══════════════════════════════════════════════════════════════════

@@ -3,6 +3,7 @@ import { fmtEur, fmtSize } from '../utils';
 import { MOIS_LABELS } from '../constants';
 import { PALETTE, card, cardH, lbl, inp, iconBtn, overlay, modal, btnPrimary, btnSec, td } from '../styles';
 import Badge from '../components/Badge';
+import ConfirmModal from '../components/ConfirmModal';
 // ══════════════════════════════════════════════════════════════════
 // COMPTABILITÉ
 // ══════════════════════════════════════════════════════════════════

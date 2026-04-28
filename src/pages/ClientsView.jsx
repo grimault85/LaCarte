@@ -1,8 +1,9 @@
 ﻿import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { isOverdue, stageOf, prioOf, formulaOf, fmtEur, fmtSize, parseActionDate } from '../utils';
-import { getTasksForFormula, STAGES, FORMULAS } from '../constants';
+import { getTasksForFormula, STAGES, FORMULAS, PRIORITY } from '../constants';
 import { PALETTE, card, cardH, lbl, inp, iconBtn, overlay, modal, btnPrimary, btnSec, td } from '../styles';
 import Badge from '../components/Badge';
+import ConfirmModal from '../components/ConfirmModal';
 function ClientsView({ clients, setClients, selected, setSelected, refresh, api }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -913,22 +914,6 @@ function SetupUserModal({ current, onSave, onClose, required }) {
             Ce nom est stocké uniquement sur ce poste et ne nécessite pas de mot de passe.
           </p>
         )}
-      </div>
-    </div>
-  );
-}
-
-function ConfirmModal({ title, message, onConfirm, onCancel }) {
-  return (
-    <div style={overlay}>
-      <div style={{ ...modal, maxWidth: 400, textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 14 }}>⚠️</div>
-        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: '#0D1520' }}>{title}</h3>
-        <p style={{ color: '#64748b', fontSize: 13, margin: '0 0 24px', lineHeight: 1.6 }}>{message}</p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <button onClick={onCancel} style={btnSec}>Annuler</button>
-          <button onClick={onConfirm} style={{ ...btnPrimary, background: '#dc2626' }}>Supprimer</button>
-        </div>
       </div>
     </div>
   );

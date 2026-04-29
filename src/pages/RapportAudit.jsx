@@ -13,8 +13,8 @@ const GENERATORS = {
     available: true,
   },
   suivi_mensuel: {
-    url: null,
-    available: false,
+    url: 'https://formulaire-suivi-mensuel.lacarte-advisory.workers.dev',
+    available: true,
   },
 };
 

@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import ClientsView, { SetupUserModal, RemindersModal } from './pages/ClientsView';
 import DossierInterne from './pages/DossierInterne';
+import RapportAudit from './pages/RapportAudit';
 import Comptabilite from './pages/Comptabilite';
 import Ressources from './pages/Ressources';
 import ReseauxSociaux from './pages/ReseauxSociaux';
@@ -132,6 +133,9 @@ export default function App() {
         )}
         {view === 'interne' && (
           <DossierInterne api={api} clients={clients} onRefreshClients={refresh} initialTab={interneTab} />
+        )}
+        {view === 'rapport' && (
+          <RapportAudit clients={clients} />
         )}
         {view === 'comptabilite' && (
           <Comptabilite api={api} clients={clients} />

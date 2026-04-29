@@ -1,12 +1,13 @@
 import { memo } from 'react';
 import { PALETTE } from '../styles';
-import { IconDash, IconFolder, IconLock, IconCompta, IconRessources, IconSocial } from './Icons';
+import { IconDash, IconFolder, IconLock, IconCompta, IconRessources, IconSocial, IconRapport } from './Icons';
 
 const Sidebar = memo(function Sidebar({ view, setView, totalClients, overdueCount, userName, onSetupUser, darkMode, onToggleDark }) {
   const items = [
     { key: 'dashboard', label: 'Tableau de bord', icon: <IconDash /> },
     { key: 'clients', label: 'Dossiers clients', icon: <IconFolder />, badge: overdueCount || null },
     { key: 'interne', label: 'Dossier Interne', icon: <IconLock /> },
+    { key: 'rapport', label: "Rapport d'audit", icon: <IconRapport /> },
     { key: 'comptabilite', label: 'Comptabilité', icon: <IconCompta /> },
     { key: 'ressources', label: 'Ressources', icon: <IconRessources /> },
     { key: 'social', label: 'Réseaux Sociaux', icon: <IconSocial /> },

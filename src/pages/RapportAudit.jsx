@@ -9,8 +9,8 @@ const GENERATORS = {
     available: true,
   },
   audit_menu_financier: {
-    url: null,
-    available: false,
+    url: 'https://formulaire-audit-complet.lacarte-advisory.workers.dev',
+    available: true,
   },
   suivi_mensuel: {
     url: null,

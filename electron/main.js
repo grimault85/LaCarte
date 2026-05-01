@@ -1028,7 +1028,7 @@ function setupIPC() {
         </ram:SpecifiedLegalOrganization>
         <ram:DefinedTradeContact>
           <ram:EmailURIUniversalCommunication>
-            <ram:URIID>lacarte.advisory@gmail.com</ram:URIID>
+            <ram:URIID>contact@lacarte-conseil.fr</ram:URIID>
           </ram:EmailURIUniversalCommunication>
         </ram:DefinedTradeContact>
         <ram:PostalTradeAddress>
@@ -1065,7 +1065,7 @@ function setupIPC() {
       pdfDoc.setAuthor('Anthony Grimault — La Carte');
       pdfDoc.setSubject('Facture Factur-X');
       pdfDoc.setKeywords(['factur-x', 'facture', 'la-carte']);
-      pdfDoc.setProducer('La Carte — lacarte.advisory@gmail.com');
+      pdfDoc.setProducer('La Carte — contact@lacarte-conseil.fr');
       pdfDoc.setCreator('La Carte Desktop App');
 
       // Attacher le XML Factur-X
@@ -1270,7 +1270,7 @@ body { background:var(--creme-light); font-family:'Space Mono',monospace; color:
         <strong>Anthony Grimault</strong><br>
         La Carte — Restaurant Advisory<br>
         SIRET : 950 998 468 00025<br>
-        lacarte.advisory@gmail.com<br>
+        contact@lacarte-conseil.fr<br>
         TVA non applicable — Art. 293 B CGI
       </div>
     </div>
@@ -1330,7 +1330,7 @@ body { background:var(--creme-light); font-family:'Space Mono',monospace; color:
     <div class="footer-brand">LA <span>CARTE</span></div>
     <div class="footer-legal">
       Anthony Grimault · Auto-entrepreneur · SIRET : 950 998 468 00025<br>
-      lacarte.advisory@gmail.com · TVA non applicable — Art. 293 B du CGI
+      contact@lacarte-conseil.fr · TVA non applicable — Art. 293 B du CGI
     </div>
   </div>
 </div>

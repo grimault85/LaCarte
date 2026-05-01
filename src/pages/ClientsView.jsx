@@ -418,7 +418,7 @@ function ClientDetail({ client, onClose, onDelete, onRefresh, api }) {
     <div class="footer-brand">LA <span>CARTE</span></div>
     <div class="footer-info">
       Anthony Grimault — Fondateur<br>
-      lacarte.advisory@gmail.com<br>
+      contact@lacarte-conseil.fr<br>
       Document confidentiel · ${new Date().toLocaleDateString('fr-FR')}
     </div>
   </div>
@@ -1776,7 +1776,7 @@ function SuiviTab({ client, api, suivis, analyses, menuAnalyses, onReload }) {
     <div class="cover-avatar">A</div>
     <div>
       <div class="cover-con-name">Anthony Grimault — Votre Conseiller</div>
-      <div class="cover-con-sub">lacarte.advisory@gmail.com</div>
+      <div class="cover-con-sub">contact@lacarte-conseil.fr</div>
     </div>
   </div>
 
@@ -1877,7 +1877,7 @@ function SuiviTab({ client, api, suivis, analyses, menuAnalyses, onReload }) {
       <div>
         <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px;">Document établi par</div>
         <div style="font-size:12px;font-weight:700;color:#0D1520;">Anthony Grimault</div>
-        <div style="font-size:10px;color:#64748b;">La Carte · lacarte.advisory@gmail.com</div>
+        <div style="font-size:10px;color:#64748b;">La Carte · contact@lacarte-conseil.fr</div>
       </div>
       <div style="text-align:right;">
         <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px;">Rapport généré le</div>
@@ -3412,7 +3412,7 @@ function EmailModal({ client, onClose, api: apiProp }) {
   }
 
   function handleSend() {
-    const gmailUrl = `https://mail.google.com/mail/u/lacarte.advisory@gmail.com/?view=cm&to=${encodeURIComponent(client.email || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const gmailUrl = `https://mail.google.com/mail/u/contact@lacarte-conseil.fr/?view=cm&to=${encodeURIComponent(client.email || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.electronAPI.openExternal(gmailUrl);
     onClose();
   }
@@ -3663,7 +3663,7 @@ input::placeholder { color:rgba(13,27,42,0.28); font-style:italic; }
           ${(facture._settings?.code_postal || facture._settings?.ville) ? `<span>${[facture._settings.code_postal, facture._settings.ville].filter(Boolean).join(' ')}</span><br>` : '<input type="text" placeholder="Code postal, Ville" style="width:190px;"><br>'}
           ${facture._settings?.telephone ? `${facture._settings.telephone}<br>` : ''}
           SIRET&nbsp;: 950 998 468 00025<br>
-          lacarte.advisory@gmail.com<br>
+          contact@lacarte-conseil.fr<br>
           TVA non applicable — Art. 293 B CGI
         </div>
       </div>
@@ -3828,7 +3828,7 @@ input::placeholder { color:rgba(13,27,42,0.28); font-style:italic; }
     <div class="footer-brand">LA <span>CARTE</span></div>
     <div class="footer-legal">
       Anthony Grimault · Auto-entrepreneur · SIRET : 950 998 468 00025<br>
-      lacarte.advisory@gmail.com · TVA non applicable — Art. 293 B du CGI<br>
+      contact@lacarte-conseil.fr · TVA non applicable — Art. 293 B du CGI<br>
       Tout litige sera soumis à la compétence des tribunaux compétents
     </div>
   </div>
@@ -4017,7 +4017,7 @@ function generateDevisHTML(client, form) {
       </div>
     </div>`;
 
-  const footer = `<div class="page-footer"><span>La Carte · Restaurant Advisory · lacarte.advisory@gmail.com · Document confidentiel</span><span>Devis N° ${form.devisNum} · ${fmtDate(today)}</span></div>`;
+  const footer = `<div class="page-footer"><span>La Carte · Restaurant Advisory · contact@lacarte-conseil.fr · Document confidentiel</span><span>Devis N° ${form.devisNum} · ${fmtDate(today)}</span></div>`;
 
   // ── PAGE 1 — COUVERTURE ─────────────────────────────────────────
   const page1 = `
@@ -4079,7 +4079,7 @@ function generateDevisHTML(client, form) {
       <div class="conseiller-avatar">A</div>
       <div>
         <div class="conseiller-name">Anthony Grimault — Votre Conseiller</div>
-        <div class="conseiller-sub">lacarte.advisory@gmail.com · ${phoneStr}</div>
+        <div class="conseiller-sub">contact@lacarte-conseil.fr · ${phoneStr}</div>
       </div>
     </div>
     ${footer}
@@ -4314,7 +4314,7 @@ function generateDevisHTML(client, form) {
     <div class="section-title">Modalités d'acceptation</div>
     <div class="steps">
       <div class="step"><div class="step-num">01</div><div class="step-text"><strong>Choisir votre formule</strong>Indiquez la formule retenue par retour d'email ou par téléphone.</div></div>
-      <div class="step"><div class="step-num">02</div><div class="step-text"><strong>Retourner le bon pour accord</strong>Signez le bon ci-dessous (scan ou photo) et retournez-le à lacarte.advisory@gmail.com.</div></div>
+      <div class="step"><div class="step-num">02</div><div class="step-text"><strong>Retourner le bon pour accord</strong>Signez le bon ci-dessous (scan ou photo) et retournez-le à contact@lacarte-conseil.fr.</div></div>
       <div class="step"><div class="step-num">03</div><div class="step-text"><strong>Régler l'acompte de 50 %</strong>Le virement de l'acompte déclenche officiellement le démarrage de la mission.</div></div>
       <div class="step"><div class="step-num">04</div><div class="step-text"><strong>Transmettre les données</strong>Un questionnaire de collecte vous sera envoyé sous 24h selon la formule choisie.</div></div>
       <div class="step"><div class="step-num">05</div><div class="step-text"><strong>Démarrage de la mission</strong>Votre conseiller accuse réception et confirme la date de livraison prévue.</div></div>
@@ -4322,7 +4322,7 @@ function generateDevisHTML(client, form) {
 
     <div class="bpa">
       <div class="bpa-title">BON POUR ACCORD</div>
-      <div style="font-size:10px;color:#64748b;text-align:center;margin-bottom:16px;">À retourner signé par email à lacarte.advisory@gmail.com</div>
+      <div style="font-size:10px;color:#64748b;text-align:center;margin-bottom:16px;">À retourner signé par email à contact@lacarte-conseil.fr</div>
 
       <div style="background:#FAF8F2;border:1px solid #DDD5B8;border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:11px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -4377,7 +4377,7 @@ function generateDevisHTML(client, form) {
       <div style="text-align:right;font-size:9px;color:#64748b;">CONDITIONS GÉNÉRALES DE VENTE<br><span style="color:#C9A84C;font-weight:600;">Version Avril 2025</span></div>
     </div>`;
 
-  const cgvFooter = (pg) => `<div style="position:absolute;bottom:10mm;left:18mm;right:18mm;display:flex;justify-content:space-between;font-size:8px;color:#94a3b8;border-top:1px solid #EEE6C9;padding-top:5px;"><span>La Carte · lacarte.advisory@gmail.com · Version Avril 2025 · Document confidentiel</span><span>Page ${pg}</span></div>`;
+  const cgvFooter = (pg) => `<div style="position:absolute;bottom:10mm;left:18mm;right:18mm;display:flex;justify-content:space-between;font-size:8px;color:#94a3b8;border-top:1px solid #EEE6C9;padding-top:5px;"><span>La Carte · contact@lacarte-conseil.fr · Version Avril 2025 · Document confidentiel</span><span>Page ${pg}</span></div>`;
 
   const artStyle = `<div style="font-size:9.5px;color:#374151;line-height:1.65;margin-bottom:10px;">`;
   const artTitle = (n, t) => `<div style="font-size:11px;font-weight:700;color:#0D1520;margin:14px 0 5px;padding-left:8px;border-left:3px solid #C9A84C;">Article ${n} — ${t}</div>`;
@@ -4403,7 +4403,7 @@ function generateDevisHTML(client, form) {
 
     <div style="font-size:9px;color:#64748b;padding:8px 12px;border:1px solid #DDD5B8;border-radius:6px;">
       <strong style="color:#0D1520;">Identité du Prestataire</strong><br>
-      Anthony Grimault · La Carte — Restaurant Advisory · Auto-entrepreneur · SIRET : 950 998 468 00025 · lacarte.advisory@gmail.com · TVA non applicable — Art. 293 B du CGI
+      Anthony Grimault · La Carte — Restaurant Advisory · Auto-entrepreneur · SIRET : 950 998 468 00025 · contact@lacarte-conseil.fr · TVA non applicable — Art. 293 B du CGI
     </div>
 
     ${artTitle('01', 'Objet et champ d\'application')}
@@ -4502,7 +4502,7 @@ function generateDevisHTML(client, form) {
     </div>
 
     <div style="margin-top:12px;font-size:8px;color:#94a3b8;text-align:center;line-height:1.5;">
-      Document établi par Anthony Grimault — La Carte — Restaurant Advisory · Version Avril 2025 · lacarte.advisory@gmail.com
+      Document établi par Anthony Grimault — La Carte — Restaurant Advisory · Version Avril 2025 · contact@lacarte-conseil.fr
     </div>
     ${cgvFooter(8)}
   </div>`;

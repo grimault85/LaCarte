@@ -731,15 +731,45 @@ function setupIPC() {
     });
   });
   ipcMain.handle('ressources:saveConnaissance', async (_, d) => {
-    const row = { titre: d.titre, categorie: d.categorie || 'general', contenu: d.contenu || '', tags: d.tags || '', favori: !!d.favori, updated_at: new Date().toISOString() };
-    if (d.id) { await supabase.from('ressources_connaissances').update(row).eq('id', d.id); invalidate('ressources_connaissances'); return { id: d.id }; }
+    const row = { titre: d.titre, categorie: d.categorie || 'general', contenu: d.contenu || '', tags: d.tags || '', lien: d.lien || '', pdf_storage_path: d.pdf_storage_path || null, pdf_filename: d.pdf_filename || null, favori: !!d.favori, updated_at: new Date().toISOString() };
+    if (d.id) {
+      if (d._old_pdf_storage_path && d._old_pdf_storage_path !== d.pdf_storage_path) {
+        await supabase.storage.from('attachments').remove([d._old_pdf_storage_path]);
+      }
+      await supabase.from('ressources_connaissances').update(row).eq('id', d.id); invalidate('ressources_connaissances'); return { id: d.id };
+    }
     const { data } = await supabase.from('ressources_connaissances').insert(row).select().single();
     invalidate('ressources_connaissances');
     return data;
   });
   ipcMain.handle('ressources:deleteConnaissance', async (_, id) => {
+    const { data: row } = await supabase.from('ressources_connaissances').select('pdf_storage_path').eq('id', id).single();
+    if (row?.pdf_storage_path) await supabase.storage.from('attachments').remove([row.pdf_storage_path]);
     await supabase.from('ressources_connaissances').delete().eq('id', id);
     invalidate('ressources_connaissances');
+    return true;
+  });
+  ipcMain.handle('ressources:uploadConnPDF', async () => {
+    const { filePaths, canceled } = await dialog.showOpenDialog({
+      title: 'Sélectionner un PDF',
+      properties: ['openFile'],
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+    if (canceled || !filePaths?.length) return null;
+    const src = filePaths[0];
+    const filename = path.basename(src);
+    const storagePath = `ressources/${Date.now()}_${filename}`;
+    const fileBuffer = fs.readFileSync(src);
+    const { error } = await supabase.storage.from('attachments').upload(storagePath, fileBuffer, { contentType: 'application/pdf', upsert: false });
+    if (error) { console.error('Upload PDF connaissance error:', error); return null; }
+    return { storage_path: storagePath, filename };
+  });
+  ipcMain.handle('ressources:openConnPDF', async (_, { storage_path, filename }) => {
+    const { data, error } = await supabase.storage.from('attachments').download(storage_path);
+    if (error || !data) { console.error('Download PDF connaissance error:', error); return false; }
+    const tmpPath = path.join(os.tmpdir(), filename);
+    fs.writeFileSync(tmpPath, Buffer.from(await data.arrayBuffer()));
+    shell.openPath(tmpPath);
     return true;
   });
 
@@ -1255,7 +1285,7 @@ body { background:var(--creme-light); font-family:'Space Mono',monospace; color:
   <div class="header">
     <div>
       <div class="logo-name">LA <span>CARTE</span></div>
-      <div class="logo-tagline">Conseil · Analyse · Recette · Tactique · Exploitation</div>
+      <div class="logo-tagline">Conseil · Analyse · Rentabilité · Tactique · Expertise</div>
     </div>
     <div class="header-right">
       <div class="facture-num">${typeLabel} — ${facture.numero || 'FACT'}</div>

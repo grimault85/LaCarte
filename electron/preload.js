@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConnaissances: () => ipcRenderer.invoke('ressources:getConnaissances'),
   saveConnaissance: (data) => ipcRenderer.invoke('ressources:saveConnaissance', data),
   deleteConnaissance: (id) => ipcRenderer.invoke('ressources:deleteConnaissance', id),
+  uploadConnPDF: () => ipcRenderer.invoke('ressources:uploadConnPDF'),
+  openConnPDF: (data) => ipcRenderer.invoke('ressources:openConnPDF', data),
   getFormations: () => ipcRenderer.invoke('ressources:getFormations'),
   saveFormation: (data) => ipcRenderer.invoke('ressources:saveFormation', data),
   deleteFormation: (id) => ipcRenderer.invoke('ressources:deleteFormation', id),

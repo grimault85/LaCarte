@@ -98,11 +98,11 @@ function BaseConnaissances({ api }) {
   }).sort((a, b) => (b.favori ? 1 : 0) - (a.favori ? 1 : 0));
 
   if (showForm || editing) return (
-    <ConnaissanceForm data={editing} onSave={async d => { await api.saveConnaissance(d); setShowForm(false); setEditing(null); load(); }} onCancel={() => { setShowForm(false); setEditing(null); }} />
+    <ConnaissanceForm api={api} data={editing} onSave={async d => { await api.saveConnaissance(d); setShowForm(false); setEditing(null); load(); }} onCancel={() => { setShowForm(false); setEditing(null); }} />
   );
 
   if (selected) return (
-    <ConnaissanceDetail item={selected} onBack={() => setSelected(null)} onEdit={() => { setEditing(selected); setSelected(null); }} onDelete={() => setShowDel(selected)} />
+    <ConnaissanceDetail api={api} item={selected} onBack={() => setSelected(null)} onEdit={() => { setEditing(selected); setSelected(null); }} onDelete={() => setShowDel(selected)} />
   );
 
   return (
@@ -141,7 +141,11 @@ function BaseConnaissances({ api }) {
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text,#0D1520)', marginBottom: 4, lineHeight: 1.3 }}>{item.titre}</div>
                 <div style={{ fontSize: 12, color: 'var(--muted,#64748b)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.contenu}</div>
-                {item.tags && <div style={{ marginTop: 8, fontSize: 10, color: 'var(--faint,#94a3b8)' }}>🏷️ {item.tags}</div>}
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                  {item.tags && <span style={{ fontSize: 10, color: 'var(--faint,#94a3b8)' }}>🏷️ {item.tags}</span>}
+                  {item.lien && <span style={{ fontSize: 10, color: '#0369a1' }}>🔗 Lien</span>}
+                  {item.pdf_filename && <span style={{ fontSize: 10, color: '#dc2626' }}>📄 PDF</span>}
+                </div>
               </div>
             );
           })}
@@ -154,7 +158,7 @@ function BaseConnaissances({ api }) {
   );
 }
 
-function ConnaissanceDetail({ item, onBack, onEdit, onDelete }) {
+function ConnaissanceDetail({ api, item, onBack, onEdit, onDelete }) {
   const cat = connCatOf(item.categorie);
   return (
     <div style={{ maxWidth: 700 }}>
@@ -170,13 +174,17 @@ function ConnaissanceDetail({ item, onBack, onEdit, onDelete }) {
       </div>
       <div style={{ ...card, padding: '18px 20px', whiteSpace: 'pre-wrap', lineHeight: 1.8, fontSize: 14, color: 'var(--text,#1e293b)' }}>{item.contenu}</div>
       {item.tags && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--muted,#64748b)' }}>🏷️ {item.tags}</div>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        {item.lien && <button onClick={() => window.electronAPI.openExternal(item.lien)} style={{ ...btnSec, fontSize: 12, color: '#0369a1' }}>🔗 Ouvrir le lien</button>}
+        {item.pdf_filename && <button onClick={() => api.openConnPDF({ storage_path: item.pdf_storage_path, filename: item.pdf_filename })} style={{ ...btnSec, fontSize: 12, color: '#dc2626' }}>📄 {item.pdf_filename}</button>}
+      </div>
       <div style={{ marginTop: 8, fontSize: 10, color: 'var(--faint,#94a3b8)' }}>Créé le {item.created_at ? new Date(item.created_at).toLocaleDateString('fr-FR') : '—'}</div>
     </div>
   );
 }
 
-function ConnaissanceForm({ data, onSave, onCancel }) {
-  const [form, setForm] = useState({ titre: '', categorie: 'general', contenu: '', tags: '', favori: false, ...(data || {}) });
+function ConnaissanceForm({ api, data, onSave, onCancel }) {
+  const [form, setForm] = useState({ titre: '', categorie: 'general', contenu: '', tags: '', lien: '', pdf_storage_path: '', pdf_filename: '', _old_pdf_storage_path: '', favori: false, ...(data || {}) });
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
   return (
     <div style={{ maxWidth: 680 }}>
@@ -203,6 +211,21 @@ function ConnaissanceForm({ data, onSave, onCancel }) {
             placeholder={"Exemple :\n• Quand le CMV viande dépasse 35%, vérifier d'abord les grammages…\n• Benchmark : dans un bistrot parisien moyen, le CMV global tourne entre 28-32%\n• Levier 1 : renégocier les contrats fournisseurs en fin de trimestre\n• Levier 2 : retravailler les recettes des plats à forte rotation"} />
         </div>
         <div style={{ marginBottom: 12 }}><label style={lbl}>Tags (séparés par des virgules)</label><input value={form.tags || ''} onChange={e => set('tags', e.target.value)} style={inp} placeholder="CMV, viande, fournisseur, négociation" /></div>
+        <div style={{ marginBottom: 12 }}><label style={lbl}>Lien (URL)</label><input value={form.lien || ''} onChange={e => set('lien', e.target.value)} style={inp} placeholder="https://…" /></div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={lbl}>Document PDF</label>
+          {form.pdf_filename ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <span style={{ fontSize: 12, color: 'var(--text,#0D1520)', background: '#fee2e2', borderRadius: 6, padding: '3px 8px' }}>📄 {form.pdf_filename}</span>
+              <button type="button" onClick={() => setForm(p => ({ ...p, _old_pdf_storage_path: p.pdf_storage_path || p._old_pdf_storage_path, pdf_storage_path: '', pdf_filename: '' }))} style={{ ...btnSec, padding: '3px 8px', fontSize: 11, color: '#dc2626', borderColor: '#fca5a5' }}>Retirer</button>
+            </div>
+          ) : (
+            <button type="button" onClick={async () => {
+              const result = await api.uploadConnPDF();
+              if (result) setForm(p => ({ ...p, _old_pdf_storage_path: p.pdf_storage_path || p._old_pdf_storage_path, pdf_storage_path: result.storage_path, pdf_filename: result.filename }));
+            }} style={{ ...btnSec, marginTop: 4, fontSize: 12 }}>📎 Joindre un PDF</button>
+          )}
+        </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.favori || false} onChange={e => set('favori', e.target.checked)} style={{ accentColor: '#C9A84C', width: 15, height: 15 }} />
           <span style={{ fontSize: 13, color: 'var(--text,#0D1520)' }}>⭐ Marquer comme favori</span>

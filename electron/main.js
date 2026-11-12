@@ -55,9 +55,31 @@ function setUserName(name) {
 }
 
 // ── Init Supabase ──────────────────────────────────────────────────────────
-function initSupabase() {
+// Identifiants de connexion stockés UNIQUEMENT sur ce poste (jamais dans Git) :
+//   <userData>/supabase_auth.json  →  { "email": "...", "password": "..." }
+function getAuthCredentials() {
+  const authPath = path.join(app.getPath('userData'), 'supabase_auth.json');
+  try {
+    const { email, password } = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
+    if (email && password) return { email, password };
+  } catch { }
+  return null;
+}
+
+async function initSupabase() {
   const { createClient } = require('@supabase/supabase-js');
-  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: true },
+  });
+  const creds = getAuthCredentials();
+  if (!creds) {
+    throw new Error(
+      'Identifiants Supabase introuvables.\nCréez le fichier :\n' +
+      path.join(app.getPath('userData'), 'supabase_auth.json')
+    );
+  }
+  const { error } = await supabase.auth.signInWithPassword(creds);
+  if (error) throw new Error('Connexion Supabase refusée : ' + error.message);
 }
 
 // ── Reminder check ─────────────────────────────────────────────────────────
@@ -1394,20 +1416,30 @@ app.whenReady().then(async () => {
   // 1. IPC handlers — toujours enregistrés en premier
   try { setupIPC(); } catch (e) { console.error('setupIPC:', e.message); }
 
-  // 2. Fenêtre — toujours ouverte, indépendamment de Supabase
+  // 2. Supabase — connexion AVANT d'ouvrir la fenêtre, pour que les premiers
+  //    chargements ne partent pas sans session (sinon listes vides mises en cache)
+  let supabaseError = null;
+  try {
+    await initSupabase();
+  } catch (err) {
+    supabaseError = err;
+  }
+
+  // 3. Fenêtre — toujours ouverte, même si Supabase a échoué
   createWindow();
 
-  // 3. Supabase — connexion en arrière-plan
   try {
-    initSupabase();
+    if (supabaseError) throw supabaseError;
     await checkReminders();
   } catch (err) {
     console.error('Erreur Supabase:', err.message);
     const wins = BrowserWindow.getAllWindows();
     if (wins.length > 0) {
-      wins[0].webContents.executeJavaScript(
-        `alert('Erreur Supabase:\n' + ${JSON.stringify(err.message)} + '\n\nLancez : npm install @supabase/supabase-js')`
+      const wc = wins[0].webContents;
+      const showAlert = () => wc.executeJavaScript(
+        `alert('Erreur Supabase:\n' + ${JSON.stringify(err.message)})`
       ).catch(() => { });
+      if (wc.isLoading()) wc.once('did-finish-load', showAlert); else showAlert();
     }
   }
 

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>La Carte — Connexion</title>
+<style>
+  :root { --navy:#0D1B2A; --band:#152536; --gold:#C9A84C; --cream:#F0E6C8; --muted:#B8AA8A; }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; background:var(--navy); color:var(--cream);
+         font-family: Georgia, 'Times New Roman', serif; display:flex; align-items:center; justify-content:center; }
+  form { width:320px; border-left:3px solid var(--gold); padding:4px 0 4px 22px; }
+  .brand { font-size:11px; letter-spacing:.3em; color:var(--gold); text-transform:uppercase; font-family: system-ui, sans-serif; }
+  h1 { font-weight:normal; font-size:24px; margin:6px 0 22px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; font-family: system-ui, sans-serif; }
+  input { width:100%; padding:10px 12px; margin-bottom:14px; background:var(--band); color:var(--cream);
+          border:1px solid #2a3b4f; border-radius:4px; font-size:14px; font-family: system-ui, sans-serif; }
+  input:focus { outline:none; border-color:var(--gold); }
+  button { width:100%; padding:11px; background:var(--gold); color:var(--navy); border:0; border-radius:4px;
+           font-weight:bold; font-size:14px; cursor:pointer; font-family: system-ui, sans-serif; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .err { color:#e8826b; font-size:12px; min-height:16px; margin-top:10px; font-family: system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<form id="f">
+  <div class="brand">La Carte · Conseil Restaurant</div>
+  <h1>Connexion</h1>
+  <label for="email">E-mail</label>
+  <input id="email" type="email" autocomplete="username" required>
+  <label for="pw">Mot de passe</label>
+  <input id="pw" type="password" autocomplete="current-password" required autofocus>
+  <button id="b" type="submit">Se connecter</button>
+  <div class="err" id="err"></div>
+</form>
+<script>
+  const email = document.getElementById('email');
+  email.value = new URLSearchParams(location.search).get('email') || '';
+  document.getElementById('f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const b = document.getElementById('b'), err = document.getElementById('err');
+    b.disabled = true; err.textContent = '';
+    const r = await window.laCarteAuth.login(email.value.trim(), document.getElementById('pw').value);
+    if (!r.ok) {
+      err.textContent = /invalid/i.test(r.message) ? 'E-mail ou mot de passe incorrect.' : r.message;
+      b.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

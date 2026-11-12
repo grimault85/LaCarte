@@ -55,31 +55,61 @@ function setUserName(name) {
 }
 
 // ── Init Supabase ──────────────────────────────────────────────────────────
-// Identifiants de connexion stockés UNIQUEMENT sur ce poste (jamais dans Git) :
-//   <userData>/supabase_auth.json  →  { "email": "...", "password": "..." }
-function getAuthCredentials() {
-  const authPath = path.join(app.getPath('userData'), 'supabase_auth.json');
-  try {
-    const { email, password } = JSON.parse(fs.readFileSync(authPath, 'utf-8'));
-    if (email && password) return { email, password };
-  } catch { }
-  return null;
+// Connexion avec le compte du cabinet. Au premier lancement, une petite fenêtre
+// demande le mot de passe ; ensuite la session est conservée sur ce poste
+// (<userData>/supabase_session.json, jamais dans Git) — aucun mot de passe stocké.
+const sessionFile = () => path.join(app.getPath('userData'), 'supabase_session.json');
+function readSessionFile() {
+  try { return JSON.parse(fs.readFileSync(sessionFile(), 'utf-8')); } catch { return {}; }
+}
+const sessionStorage = {
+  getItem: (k) => readSessionFile()[k] ?? null,
+  setItem: (k, v) => { const d = readSessionFile(); d[k] = v; fs.writeFileSync(sessionFile(), JSON.stringify(d), 'utf-8'); },
+  removeItem: (k) => { const d = readSessionFile(); delete d[k]; fs.writeFileSync(sessionFile(), JSON.stringify(d), 'utf-8'); },
+};
+
+const DEFAULT_LOGIN_EMAIL = 'lacarte.advisory@gmail.com';
+let authPending = false; // empêche l'appli de se fermer pendant la fenêtre de connexion
+
+function showLoginWindow() {
+  return new Promise((resolve) => {
+    authPending = true;
+    const loginWin = new BrowserWindow({
+      width: 420, height: 380, resizable: false, minimizable: false, maximizable: false,
+      title: 'La Carte — Connexion', autoHideMenuBar: true, backgroundColor: '#0D1B2A',
+      webPreferences: { preload: path.join(__dirname, 'login-preload.js'), contextIsolation: true, nodeIntegration: false },
+    });
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      ipcMain.removeHandler('auth:login');
+      resolve(ok);
+    };
+    ipcMain.handle('auth:login', async (_e, { email, password }) => {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { ok: false, message: error.message };
+      finish(true);
+      // La fenêtre principale est créée avant de fermer celle-ci
+      setTimeout(() => { if (!loginWin.isDestroyed()) loginWin.close(); authPending = false; }, 300);
+      return { ok: true };
+    });
+    loginWin.on('closed', () => { finish(false); authPending = false; });
+    loginWin.loadFile(path.join(__dirname, 'login.html'), { query: { email: DEFAULT_LOGIN_EMAIL } });
+  });
 }
 
 async function initSupabase() {
   const { createClient } = require('@supabase/supabase-js');
   supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: true },
+    auth: { storage: sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   });
-  const creds = getAuthCredentials();
-  if (!creds) {
-    throw new Error(
-      'Identifiants Supabase introuvables.\nCréez le fichier :\n' +
-      path.join(app.getPath('userData'), 'supabase_auth.json')
-    );
-  }
-  const { error } = await supabase.auth.signInWithPassword(creds);
-  if (error) throw new Error('Connexion Supabase refusée : ' + error.message);
+  // Session déjà enregistrée sur ce poste ? (rafraîchie automatiquement si expirée)
+  const { data } = await supabase.auth.getSession();
+  if (data?.session) return;
+
+  const ok = await showLoginWindow();
+  if (!ok) throw new Error('Connexion annulée : les données ne seront pas accessibles. Relancez La Carte pour vous connecter.');
 }
 
 // ── Reminder check ─────────────────────────────────────────────────────────
@@ -1447,4 +1477,4 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => { if (authPending) return; if (process.platform !== 'darwin') app.quit(); });

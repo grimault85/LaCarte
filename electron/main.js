@@ -106,10 +106,15 @@ async function initSupabase() {
   });
   // Session déjà enregistrée sur ce poste ? (rafraîchie automatiquement si expirée)
   const { data } = await supabase.auth.getSession();
-  if (data?.session) return;
+  if (data?.session) {
+    // Vérifie auprès de Supabase que la session enregistrée est toujours valable
+    const { data: u, error } = await supabase.auth.getUser();
+    if (!error && u?.user) return;
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => { });
+  }
 
   const ok = await showLoginWindow();
-  if (!ok) throw new Error('Connexion annulée : les données ne seront pas accessibles. Relancez La Carte pour vous connecter.');
+  if (!ok) { app.quit(); throw new Error('Connexion annulée'); }
 }
 
 // ── Reminder check ─────────────────────────────────────────────────────────
@@ -1427,13 +1432,15 @@ function getMimeType(ext) {
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 960, minHeight: 620,
-    title: 'La Carte',
+    title: `La Carte ${app.getVersion()}`,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
     icon: process.platform === 'win32'
       ? path.join(__dirname, '../public/icon.ico')
       : path.join(__dirname, '../public/icon.png'),
   });
+  // Garde « La Carte x.y.z » dans la barre de titre (au lieu du titre de la page)
+  win.on('page-title-updated', (e) => e.preventDefault());
   if (isDev) { win.loadURL('http://localhost:3000'); }
   else { win.loadFile(path.join(__dirname, '../build/index.html')); }
 }

@@ -1,6 +1,6 @@
 {
   "name": "la-carte",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "La Carte — Restaurant Advisory",
   "author": "Anthony Grimault",
   "main": "electron/main.js",

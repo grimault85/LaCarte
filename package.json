@@ -1,6 +1,6 @@
 {
   "name": "la-carte",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "La Carte — Restaurant Advisory",
   "author": "Anthony Grimault",
   "main": "electron/main.js",
@@ -48,10 +48,19 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "La Carte"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "grimault85",
+        "repo": "LaCarte",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.103.2",
+    "electron-updater": "^6.3.9",
     "pdf-lib": "^1.17.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -72,5 +81,9 @@
     "development": [
       "last 1 chrome version"
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grimault85/LaCarte.git"
   }
 }

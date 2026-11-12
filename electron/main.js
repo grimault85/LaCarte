@@ -1438,6 +1438,31 @@ function createWindow() {
   else { win.loadFile(path.join(__dirname, '../build/index.html')); }
 }
 
+// ── Mises à jour automatiques (GitHub Releases) ─────────────────────────────
+// Au démarrage, La Carte vérifie s'il existe une nouvelle version publiée sur
+// GitHub, la télécharge en arrière-plan puis propose de redémarrer pour l'installer.
+function setupAutoUpdate() {
+  if (!app.isPackaged) return; // pas en développement
+  let autoUpdater;
+  try { ({ autoUpdater } = require('electron-updater')); } catch (e) { console.error('electron-updater:', e.message); return; }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('error', (err) => console.error('[MAJ] Erreur :', err?.message || err));
+  autoUpdater.on('update-downloaded', async (info) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Mise à jour disponible',
+      message: `La Carte ${info.version} est prête à être installée.`,
+      detail: 'Redémarrer maintenant pour l\'installer ? Sinon, elle s\'installera à la prochaine fermeture du logiciel.',
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      defaultId: 0, cancelId: 1,
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+  autoUpdater.checkForUpdates().catch((err) => console.error('[MAJ] Vérification impossible :', err?.message || err));
+}
+
 // ── Démarrage ──────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   // 0. Charger le nom d'utilisateur (app.getPath disponible ici)
@@ -1457,6 +1482,9 @@ app.whenReady().then(async () => {
 
   // 3. Fenêtre — toujours ouverte, même si Supabase a échoué
   createWindow();
+
+  // 4. Recherche de mise à jour en arrière-plan
+  setupAutoUpdate();
 
   try {
     if (supabaseError) throw supabaseError;
